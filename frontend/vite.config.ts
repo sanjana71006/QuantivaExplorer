@@ -32,7 +32,7 @@ export default defineConfig(({ mode }) => ({
           if (id.includes('node_modules')) {
             if (id.includes('three')) return 'vendor-three';
             if (id.includes('recharts')) return 'vendor-charts';
-            if (id.includes('react')) return 'vendor-react';
+            // Keep React in the main vendor chunk to avoid runtime ordering issues
             return 'vendor';
           }
         }
