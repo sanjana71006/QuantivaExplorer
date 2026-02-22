@@ -1,4 +1,4 @@
-import { useState, useMemo, Suspense, useEffect } from "react";
+import { useState, useMemo, Suspense, useEffect, lazy } from "react";
 import { motion } from "framer-motion";
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { Slider } from "@/components/ui/slider";
@@ -9,7 +9,7 @@ import { Loader2, Atom, Maximize2 } from "lucide-react";
 import { getDataset } from "@/lib/moleculeDataset";
 import { scoreMolecules, quantumWalk, defaultWeights } from "@/lib/quantumEngine";
 import { explainMolecule } from "@/lib/aiExplainer";
-import ChemicalUniverse3D from "@/components/ChemicalUniverse3D";
+const ChemicalUniverse3D = lazy(() => import("@/components/ChemicalUniverse3D"));
 import type { ScoredMolecule } from "@/lib/quantumEngine";
 
 const diseaseColors: Record<string, string> = {
