@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "render-build": "rm -rf node_modules package-lock.json && npm install && npm run build"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
