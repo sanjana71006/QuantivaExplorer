@@ -74,12 +74,12 @@ function GPGPUAdj({ prevTex, neighborTex, iterations, damping, temperature, N, K
   // local texture refs (may be converted to byte textures if float not supported)
   const prevTexRef = useRef<any>(prevTex);
   const neighborTexRef = useRef<any>(neighborTex);
-  // color mapping shader: maps grayscale probability to color ramp
+  // color mapping shader: maps grayscale probability to vivid color ramp
   const ColorMapMaterial = useMemo(() => {
     return new THREE.ShaderMaterial({
       uniforms: { uTex: { value: null } },
       vertexShader: `void main(){ gl_Position = vec4(position,1.0); }`,
-      fragmentShader: `precision highp float; uniform sampler2D uTex; vec3 mapColor(float v){ vec3 low=vec3(0.12,0.23,0.48); vec3 mid=vec3(0.16,0.72,0.79); vec3 high=vec3(1.0,0.82,0.4); if(v<0.5){ float f=v/0.5; return mix(low, mid, f);} float f=(v-0.5)/0.5; return mix(mid, high, f);} void main(){ float v=texture2D(uTex, gl_FragCoord.xy/vec2(float(${N}),1.0)).r; vec3 c=mapColor(v); gl_FragColor=vec4(c,1.0); }`,
+      fragmentShader: `precision highp float; uniform sampler2D uTex; vec3 mapColor(float v){ vec3 low = vec3(0.08, 0.04, 0.30); /* deep purple */ vec3 mid = vec3(0.94, 0.06, 0.48); /* magenta */ vec3 high = vec3(1.00, 0.85, 0.18); /* warm yellow */ if(v < 0.5){ float f = v / 0.5; return mix(low, mid, f); } float f = (v - 0.5) / 0.5; return mix(mid, high, f); } void main(){ float v = texture2D(uTex, gl_FragCoord.xy/vec2(float(${N}),1.0)).r; vec3 c = mapColor(v); /* boost contrast */ c = pow(c, vec3(0.95)); gl_FragColor = vec4(c, 1.0); }`,
       depthTest: false,
     });
   }, [N]);
@@ -87,9 +87,9 @@ function GPGPUAdj({ prevTex, neighborTex, iterations, damping, temperature, N, K
   // glow shader: amplify high values for additive blend
   const GlowMaterial = useMemo(() => {
     return new THREE.ShaderMaterial({
-      uniforms: { uTex: { value: null }, uPower: { value: 2.5 } },
+      uniforms: { uTex: { value: null }, uPower: { value: 3.0 } },
       vertexShader: `void main(){ gl_Position = vec4(position,1.0); }`,
-      fragmentShader: `precision highp float; uniform sampler2D uTex; uniform float uPower; void main(){ float v=texture2D(uTex, gl_FragCoord.xy/vec2(float(${N}),1.0)).r; float g=pow(v, uPower); gl_FragColor=vec4(vec3(g), g*0.6); }`,
+      fragmentShader: `precision highp float; uniform sampler2D uTex; uniform float uPower; void main(){ float v = texture2D(uTex, gl_FragCoord.xy/vec2(float(${N}),1.0)).r; float g = pow(v, uPower); /* colorize glow slightly toward warm */ vec3 col = mix(vec3(0.9,0.1,0.5), vec3(1.0,0.9,0.2), clamp(v*1.2, 0.0, 1.0)); gl_FragColor = vec4(col * g, g * 0.7); }`,
       depthTest: false,
       transparent: true,
       blending: THREE.AdditiveBlending,
@@ -417,10 +417,19 @@ export default function ProbabilityFlowMap({ molecules, size = 128, onTopIndices
         <div className="text-xs text-muted-foreground">Adjacency: <span className="font-medium">{adjacencySource}</span></div>
       </div>
 
-      <div className="h-64 rounded overflow-hidden bg-gradient-to-tr from-slate-50 to-slate-100">
+      <div className="h-64 rounded overflow-hidden bg-gradient-to-tr from-white to-sky-50 relative">
         <Canvas gl={{ antialias: false, alpha: false }} orthographic camera={{ position: [0, 0, 1] }} style={{ background: "transparent" }}>
           <GPGPUAdj prevTex={prevTex} neighborTex={neighborTex} iterations={iterations} damping={damping} temperature={temperature} N={N} K={K} onTop={onTopIndices} />
         </Canvas>
+
+        {/* Color legend overlay */}
+        <div className="absolute left-4 bottom-4 z-30 bg-white/75 backdrop-blur-sm rounded-md p-2 text-xs shadow-md flex items-center gap-3">
+          <div className="flex flex-col items-start">
+            <div className="font-semibold">Color Legend</div>
+            <div className="text-muted-foreground text-[11px]">Probability →</div>
+          </div>
+          <div style={{ width: 180, height: 12, borderRadius: 6, background: 'linear-gradient(90deg, #14062f 0%, #ef0f7b 50%, #ffd166 100%)' }} />
+        </div>
       </div>
     </div>
   );
