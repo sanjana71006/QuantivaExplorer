@@ -12,6 +12,8 @@ import { scoreMolecules, quantumWalk, defaultWeights } from "@/lib/quantumEngine
 import { explainMolecule } from "@/lib/aiExplainer";
 import { useLiveMolecules } from "@/hooks/useLiveMolecules";
 import ApiStatusBadge from "@/components/ApiStatusBadge";
+import SearchBar from "@/components/SearchBar";
+import DataSourceBadge from "@/components/DataSourceBadge";
 const ChemicalUniverse3D = lazy(() => import("@/components/ChemicalUniverse3D"));
 import ProbabilityFlowMap from "@/components/ProbabilityFlowMap";
 import type { ScoredMolecule } from "@/lib/quantumEngine";
@@ -49,6 +51,54 @@ const Visualization = () => {
   const [show3D, setShow3D] = useState(true);
   const [dataset, setDataset] = useState<any[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchSource, setSearchSource] = useState<string | null>(null);
+
+  // Convert remote search items into Molecule shape and score them
+  const liveSearchMolecules = useMemo(() => {
+    if (!searchResults || !searchResults.length) return [];
+    // Map incoming normalized records to Molecule interface expected by scoreMolecules
+    const mapped = searchResults.slice(0, 50).map((it, i) => {
+      const mw = Number(it.molecular_weight) || 0;
+      const logP = Number(it.logP) || Number(it.XLogP) || 0;
+      const donors = Number(it.h_donors ?? it.HBondDonorCount) || 0;
+      const acceptors = Number(it.h_acceptors ?? it.HBondAcceptorCount) || 0;
+      const smiles = it.smiles || it.CanonicalSMILES || '';
+      // basic pca-like embedding from descriptors
+      const pca_x = Number(((mw - 300) / 200) * 5);
+      const pca_y = Number(((logP - 1) / 4) * 5);
+      const pca_z = Number(((donors + acceptors) / 10 - 0.5) * 5);
+
+      return {
+        molecule_id: String(it.id || it.CID || `pub_${i}`),
+        name: it.name || it.title || it.Name || `Compound ${i}`,
+        smiles,
+        source_dataset: searchSource || 'pubchem',
+        formula: '',
+        molecular_weight: mw,
+        logP: logP,
+        h_bond_donors: donors,
+        h_bond_acceptors: acceptors,
+        rotatable_bonds: 0,
+        polar_surface_area: Number(it.tpsa ?? it.TPSA) || 0,
+        solubility: 0.5,
+        toxicity_risk: 0.2,
+        efficacy_index: 0.5,
+        safety_index: 0.5,
+        molecular_complexity: 0.3,
+        drug_score: 0.5,
+        lipinski_compliant: 1,
+        disease_target: searchSource === 'local' ? 'Local' : 'PubChem',
+        drug_likeness_score: 0.5,
+        pca_x,
+        pca_y,
+        pca_z,
+      } as any;
+    });
+
+    const scored = scoreMolecules(mapped, defaultWeights);
+    return scored.slice(0, 50);
+  }, [searchResults, searchSource]);
 
   // Live molecules hook — shows live API data when available
   const { items: liveItems, status: liveStatus, source: liveSource, lastUpdated, refresh } = useLiveMolecules({ limit: 50 });
@@ -150,6 +200,19 @@ const Visualization = () => {
   // Scatter data (limit to 200 for recharts performance)
   const scatterData = useMemo(() => filtered.slice(0, 200), [filtered]);
 
+  // Merge liveSearchMolecules on top of filtered dataset for visualization (dedupe by id)
+  const displayedMolecules = useMemo(() => {
+    const map = new Map<string, any>();
+    // add live search first
+    for (const m of liveSearchMolecules) {
+      map.set(m.molecule_id, m);
+    }
+    for (const m of filtered) {
+      if (!map.has(m.molecule_id)) map.set(m.molecule_id, m);
+    }
+    return Array.from(map.values()).slice(0, 500);
+  }, [liveSearchMolecules, filtered]);
+
   // small wrapper component rendered near top-right to show API status
   function LiveApiStatus() {
     return <ApiStatusBadge status={liveStatus} source={liveSource} lastUpdated={lastUpdated} />;
@@ -168,6 +231,86 @@ const Visualization = () => {
       <div className="flex items-center justify-end">
         <LiveApiStatus />
       </div>
+
+      {/* Search bar + source badge */}
+      <div className="glass-card p-4 flex items-center gap-4">
+        <div className="flex-1">
+          <SearchBar
+            onResults={(items, source) => {
+              setSearchResults(items || []);
+              setSearchSource(String(source || 'local'));
+              // auto-select first result if present
+              if (Array.isArray(items) && items.length > 0) {
+                const first = items[0];
+                const candidate = {
+                  molecule_id: String(first.id || first.CID || 'r1'),
+                  name: first.name || first.Title || 'Result',
+                  molecular_weight: Number(first.molecular_weight) || 0,
+                  logP: Number(first.logP) || 0,
+                  probability: 0,
+                } as any;
+                setSelectedMol(candidate);
+              }
+            }}
+          />
+        </div>
+        <DataSourceBadge source={searchSource} />
+      </div>
+
+      {/* Search result preview */}
+      {searchResults && searchResults.length > 0 && (
+        <div className="glass-card p-4">
+          <div className="flex items-start gap-4">
+            <div className="w-36 h-36 bg-white rounded shadow flex items-center justify-center">
+              {/* 2D image from PubChem if available */}
+              <img src={searchResults[0].image_url || `/api/compound-image?cid=${searchResults[0].id}`} alt={searchResults[0].name || 'molecule'} className="max-w-full max-h-full" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-lg font-semibold">{searchResults[0].name || searchResults[0].Title || 'Compound'}</h4>
+                  <div className="text-xs text-muted-foreground">ID: {searchResults[0].id || searchResults[0].CID}</div>
+                </div>
+                <DataSourceBadge source={searchSource} />
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <div>
+                  <div className="text-xs text-muted-foreground">Molecular Weight</div>
+                  <div className="font-medium">{searchResults[0].molecular_weight ?? '—'}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">LogP</div>
+                  <div className="font-medium">{searchResults[0].logP ?? '—'}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">H Donors</div>
+                  <div className="font-medium">{searchResults[0].h_donors ?? '—'}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">H Acceptors</div>
+                  <div className="font-medium">{searchResults[0].h_acceptors ?? '—'}</div>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <button className="btn btn-sm btn-primary" onClick={() => {
+                  // add first result into 3D view by updating selectedMol and ensuring liveSearchMolecules present
+                  const it = searchResults[0];
+                  const candidate = {
+                    molecule_id: String(it.id || it.CID || 'r1'),
+                    name: it.name || it.Title || 'Result',
+                    molecular_weight: Number(it.molecular_weight) || 0,
+                    logP: Number(it.logP) || 0,
+                    probability: 0,
+                  } as any;
+                  setSelectedMol(candidate);
+                }}>Inspect</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Controls */}
       <div className="glass-card p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
@@ -228,7 +371,7 @@ const Visualization = () => {
               <div className="h-[450px]">
                 <Suspense fallback={<div className="h-full flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
                   <ChemicalUniverse3D
-                    molecules={filtered.slice(0, 500)}
+                        molecules={displayedMolecules}
                     onSelectMolecule={setSelectedMol}
                     selectedMoleculeId={selectedMol?.molecule_id || null}
                     attractorIds={attractorIds}
@@ -249,7 +392,7 @@ const Visualization = () => {
               <p className="text-xs text-muted-foreground">Animated diffusion across embedding space</p>
             </div>
             <ProbabilityFlowMap
-              molecules={filtered.slice(0, 500).map((m) => ({ pca_x: m.pca_x, pca_y: m.pca_y, probability: m.probability, id: m.molecule_id }))}
+              molecules={displayedMolecules.slice(0, 500).map((m) => ({ pca_x: m.pca_x, pca_y: m.pca_y, probability: m.probability || 0, id: m.molecule_id }))}
               size={128}
               onTopIndices={(indices: number[]) => {
                 // map indices back to molecule ids and set attractors
@@ -290,7 +433,7 @@ const Visualization = () => {
               </Suspense>
               <div className="mt-3">
                 <ProbabilityFlowMap
-                  molecules={filtered.slice(0, 500).map((m) => ({ pca_x: m.pca_x, pca_y: m.pca_y, probability: m.probability, id: m.molecule_id }))}
+                  molecules={displayedMolecules.slice(0, 500).map((m) => ({ pca_x: m.pca_x, pca_y: m.pca_y, probability: m.probability || 0, id: m.molecule_id }))}
                   size={128}
                   onTopIndices={(indices: number[]) => {
                     const subset = filtered.slice(0, 500);
