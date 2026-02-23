@@ -91,9 +91,27 @@ function Scene({
         ((m.pca_z - rz.min) / rz.span - 0.5) * scale,
       ] as [number, number, number]),
       colors: displayed.map((m) => {
-        // Color by probability: cyan (high) → purple (mid) → dim (low)
-        const t = Math.max(0, Math.min(1, m.probability));
-        return new THREE.Color().setHSL(0.65 - t * 0.3, 0.85, 0.35 + t * 0.35);
+        // Prefer coloring by dataset/source when available, otherwise fall back to probability
+        const src = (m as any).source_dataset || (m as any).source || (m as any).disease_target || "unknown";
+        // map known source keys to pleasant colors
+        const mapping: Record<string, string> = {
+          pubchem_antibiotic: "#0ea5a4", // teal-cyan
+          delaney_solubility: "#ef4444", // bright red
+          quantum_candidates: "#8b5cf6", // vivid violet
+          PubChem: "#0ea5a4",
+          Delaney: "#ef4444",
+          Quantum: "#8b5cf6",
+          unknown: "#3b82f6", // blue for probability-based
+        };
+
+        const hex = mapping[String(src)] || mapping.unknown;
+        const color = new THREE.Color(hex);
+        // if no explicit source, modulate brightness by probability
+        if (!((m as any).source_dataset || (m as any).source || (m as any).disease_target)) {
+          const t = Math.max(0, Math.min(1, m.probability));
+          color.offsetHSL(0, 0, (t - 0.5) * 0.4);
+        }
+        return color;
       }),
       sizes: displayed.map((m) => 0.03 + Math.max(0, Math.min(1, m.drug_likeness_score)) * 0.12),
     };
@@ -143,8 +161,13 @@ function Scene({
     // Attach instance color attribute
     useEffect(() => {
       if (!meshRef.current) return;
-      const geo = meshRef.current.geometry as THREE.BufferGeometry;
-      geo.setAttribute("instanceColor", new THREE.InstancedBufferAttribute(colorArray, 3));
+      // Use InstancedMesh.instanceColor for per-instance colors so the standard material picks them up
+      try {
+        (meshRef.current as any).instanceColor = new THREE.InstancedBufferAttribute(colorArray, 3);
+      } catch (e) {
+        const geo = meshRef.current.geometry as THREE.BufferGeometry;
+        geo.setAttribute("instanceColor", new THREE.InstancedBufferAttribute(colorArray, 3));
+      }
     }, [colorArray]);
 
     return (
@@ -202,6 +225,30 @@ function Scene({
       {/* Grid helper */}
       <gridHelper args={[12, 12, "#1a1a3e", "#1a1a3e"]} position={[0, -5.5, 0]} />
     </>
+  );
+}
+
+// Legend overlay for colors
+function LegendOverlay({ className }: { className?: string }) {
+  const items = [
+    { label: "PubChem", color: "#0ea5a4" },
+    { label: "Delaney", color: "#ef4444" },
+    { label: "Quantum", color: "#8b5cf6" },
+    { label: "Unknown / Prob-based", color: "#3b82f6" },
+  ];
+
+  return (
+    <div className={`absolute right-4 top-4 z-40 rounded-md bg-white/70 backdrop-blur-sm p-2 text-xs shadow ${className ?? ""}`}>
+      <div className="font-semibold mb-1">Color Legend</div>
+      <div className="flex flex-col gap-2">
+        {items.map((it) => (
+          <div key={it.label} className="flex items-center gap-2">
+            <div style={{ width: 14, height: 14, background: it.color, borderRadius: 4 }} />
+            <div className="text-xs text-muted-foreground">{it.label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

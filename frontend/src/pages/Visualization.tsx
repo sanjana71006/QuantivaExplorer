@@ -261,7 +261,7 @@ const Visualization = () => {
           </motion.div>
         </>
       ) : (
-        <div className="grid lg:grid-cols-2 gap-4">
+        <div className="grid lg:grid-cols-2 gap-4 divide-x divide-border">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-4">
             <h3 className="font-display font-semibold text-foreground mb-3">Classical View (Left)</h3>
             <div style={{ height: 360 }}>
@@ -323,9 +323,10 @@ const Visualization = () => {
           </ResponsiveContainer>
         </motion.div>
 
-        {/* Quantum Probability Heatmap */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card p-6">
-              <h3 className="font-display font-semibold text-foreground mb-2">Quantum Probability Heatmap</h3>
+        {/* Quantum Probability Heatmap (hidden in split mode to avoid visual merging) */}
+        {visualMode !== "split" && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card p-6">
+            <h3 className="font-display font-semibold text-foreground mb-2">Quantum Probability Heatmap</h3>
             <p className="text-xs text-muted-foreground mb-3">Top {heatmapSize} candidates (by weighted score). Hover tiles to see molecule name and probability.</p>
             <div className="grid grid-cols-10 gap-1">
               {heatmapData.map((cell, i) => {
@@ -367,11 +368,12 @@ const Visualization = () => {
               <div className="text-xs text-muted-foreground w-24 text-right">0%</div>
               <div className="text-xs text-muted-foreground w-28 text-right">Max: {(maxHeat * 100).toFixed(2)}%</div>
             </div>
-          <div className="flex justify-between mt-3">
-            <span className="text-xs text-muted-foreground">Low probability</span>
-            <span className="text-xs text-muted-foreground">High probability</span>
-          </div>
-        </motion.div>
+            <div className="flex justify-between mt-3">
+              <span className="text-xs text-muted-foreground">Low probability</span>
+              <span className="text-xs text-muted-foreground">High probability</span>
+            </div>
+          </motion.div>
+        )}
       </div>
 
       {/* AI Explainer Panel */}
