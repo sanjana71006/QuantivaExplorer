@@ -22,6 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+.env
+backend/.env
+bun.lockb
 # Logs
 logs
 *.log

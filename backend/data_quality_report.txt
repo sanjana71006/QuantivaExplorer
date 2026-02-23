@@ -1,0 +1,27 @@
+Data Quality Report - Quantum-Inspired Drug Candidate Exploration
+======================================================================
+
+Step 1: Dataset diagnostics
+- delaney: rows=1128, cols=10, total_missing=0, duplicates=0
+- pubchem: rows=2359, cols=38, total_missing=4050, duplicates=0
+- quantum: rows=0, cols=0, total_missing=0, duplicates=0
+
+Step 2: Cleaning summary
+- Standardized all columns to snake_case.
+- Removed exact duplicates per source dataset.
+- Applied robust numeric imputation (median) on critical numeric fields.
+- Winsorized numeric outliers at 1st/99th percentile to reduce scoring instability.
+- Harmonized heterogeneous schemas into one candidate table.
+
+Step 3: Engineered features
+- efficacy_index, safety_index, molecular_complexity, drug_score, priority_rank
+
+Step 4: Final dataset status
+- Final rows: 3487
+- Final columns: 19
+- Critical null counts: {'candidate_id': 0, 'source_dataset': 0, 'drug_score': 0, 'safety_index': 0, 'efficacy_index': 0, 'priority_rank': 0}
+- Numeric columns: ['molecular_weight', 'polar_area', 'xlogp', 'h_bond_donor_count', 'h_bond_acceptor_count', 'rotatable_bond_count', 'binding_score', 'toxicity', 'stability', 'solubility', 'efficacy_index', 'safety_index', 'molecular_complexity', 'drug_score', 'priority_rank']
+- Duplicate rows in final dataset: 0
+
+Suitability assessment
+- Suitable for real-time scoring/filtering and web visualization: compact schema, normalized engineered metrics, no critical nulls, and deterministic ranking.

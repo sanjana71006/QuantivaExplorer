@@ -1,0 +1,26 @@
+Feature descriptions for AI-driven drug candidate ranking
+
+1) drug_score
+   Composite ranking score in [0,1], weighted by efficacy_index (45%), safety_index (35%),
+   and complexity balance (20%). Higher is better.
+
+2) safety_index
+   Safety proxy in [0,1], combining inverse toxicity (if available) and Lipinski-style rule compliance.
+   Higher indicates lower estimated risk and better oral-drug-likeness.
+
+3) efficacy_index
+   Efficacy proxy in [0,1], combining binding_score, stability, and solubility (normalized).
+   Higher indicates better predicted therapeutic performance.
+
+4) molecular_complexity
+   Normalized structural complexity proxy in [0,1], derived from complexity, heavy atom count,
+   and rotatable bond count. Used to avoid over- or under-complex candidates.
+
+5) priority_rank
+   Integer rank after sorting by drug_score descending. Rank 1 is highest priority.
+
+Assumptions
+- Datasets have heterogeneous schema and partially missing fields; robust median imputation is applied.
+- Outliers are winsorized (1st-99th percentile) to stabilize real-time scoring.
+- Delaney measured log solubility is min-max normalized to align with [0,1] solubility scale.
+- Frontend compatibility is prioritized: snake_case columns, numeric consistency, CSV+JSON exports.

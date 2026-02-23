@@ -8,6 +8,15 @@ from typing import Dict, List, Tuple
 import numpy as np
 import pandas as pd
 
+# optional RDKit fallback for computing LogP from SMILES
+try:
+    # rdkit is optional; silence Pylance/reportMissingImports when not installed
+    from rdkit import Chem  # type: ignore[reportMissingImports]
+    from rdkit.Chem.Crippen import MolLogP  # type: ignore[reportMissingImports]
+    _HAS_RDKIT = True
+except Exception:
+    _HAS_RDKIT = False
+
 
 WORKSPACE = Path(__file__).resolve().parents[1]
 
@@ -246,6 +255,50 @@ def harmonize_and_engineer(dfs: List[pd.DataFrame]) -> pd.DataFrame:
         "predicted_log_solubility",
         "minimum_degree",
     ]
+    # Compute xlogp (logP) from SMILES when values are missing or zero.
+    # Prefer RDKit if available, otherwise leave NaN to be imputed by median.
+    if "smiles" in combined.columns:
+        if "xlogp" not in combined.columns:
+            combined["xlogp"] = np.nan
+
+        def compute_logp_from_smiles(smiles: str) -> float:
+            if not _HAS_RDKIT:
+                return np.nan
+            try:
+                if pd.isna(smiles) or not isinstance(smiles, str) or smiles.strip().lower() in {"", "unknown", "nan"}:
+                    return np.nan
+                m = Chem.MolFromSmiles(smiles)
+                if m is None:
+                    return np.nan
+                return float(MolLogP(m))
+            except Exception:
+                return np.nan
+
+        missing_logp = combined["xlogp"].isna() | (pd.to_numeric(combined["xlogp"], errors="coerce") == 0)
+        # Only attempt compute when SMILES present and RDKit is available.
+        if missing_logp.any():
+            if _HAS_RDKIT:
+                combined.loc[missing_logp, "xlogp"] = (
+                    combined.loc[missing_logp, "smiles"].apply(compute_logp_from_smiles)
+                )
+            else:
+                # RDKit not available: apply a lightweight heuristic to estimate logP
+                def heuristic_logp(row: pd.Series) -> float:
+                    try:
+                        mw = float(row.get("molecular_weight") or 0.0)
+                        pa = float(row.get("polar_area") or 0.0)
+                    except Exception:
+                        return np.nan
+                    # baseline near 2.0, increase with MW, decrease with polar area
+                    est = 2.0 + (mw - 350.0) / 250.0 - (pa - 50.0) / 200.0
+                    return float(np.clip(est, -2.0, 6.0))
+
+                try:
+                    combined.loc[missing_logp, "xlogp"] = (
+                        combined.loc[missing_logp].apply(heuristic_logp, axis=1)
+                    )
+                except Exception:
+                    combined.loc[missing_logp, "xlogp"] = np.nan
     for col in numeric_candidates:
         if col in combined.columns:
             combined[col] = pd.to_numeric(combined[col], errors="coerce")
@@ -436,8 +489,16 @@ def generate_quality_report(
 
 
 def main() -> None:
-    raw = {k: pd.read_csv(v) for k, v in INPUT_FILES.items()}
-    initial_profiles = [profile_dataframe(df, name) for name, df in raw.items()]
+    raw: Dict[str, pd.DataFrame] = {}
+    initial_profiles: List[Dict[str, object]] = []
+    for name, path in INPUT_FILES.items():
+        try:
+            df = pd.read_csv(path)
+            raw[name] = df
+        except Exception:
+            # missing or unreadable input — create empty dataframe and note in profile
+            raw[name] = pd.DataFrame()
+        initial_profiles.append(profile_dataframe(raw[name], name))
 
     pubchem = prepare_pubchem(raw["pubchem"])
     delaney = prepare_delaney(raw["delaney"])

@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { getDatasetSlice, getDatasetStats } from "@/lib/moleculeDataset";
+import MoleculeSketch from "@/components/MoleculeSketch";
 
 const statIcons = [Database, Layers, TrendingUp, Shield, Beaker, Atom];
 
@@ -106,6 +107,7 @@ const DatasetSelection = () => {
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
                 <TableHead className="text-muted-foreground">ID</TableHead>
+                <TableHead className="text-muted-foreground">Structure</TableHead>
                 <TableHead className="text-muted-foreground">Name</TableHead>
                 <TableHead className="text-muted-foreground">MW</TableHead>
                 <TableHead className="text-muted-foreground">LogP</TableHead>
@@ -118,6 +120,12 @@ const DatasetSelection = () => {
               {molecules.slice(0, 50).map((mol) => (
                 <TableRow key={mol.molecule_id} className="border-border hover:bg-muted/30 transition-colors">
                   <TableCell className="font-mono text-sm text-primary">{mol.molecule_id}</TableCell>
+                  <TableCell>
+                    {/* lazy-render 2D sketch (falls back to SMILES text if dependency missing) */}
+                    <div className="w-20 h-12">
+                      <MoleculeSketch smiles={mol.smiles} size={64} />
+                    </div>
+                  </TableCell>
                   <TableCell className="text-foreground font-medium">{mol.name}</TableCell>
                   <TableCell className="text-muted-foreground">{mol.molecular_weight}</TableCell>
                   <TableCell className="text-muted-foreground">{mol.logP}</TableCell>

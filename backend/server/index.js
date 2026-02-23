@@ -18,6 +18,9 @@ import {
   rankCandidates,
   computeWeightedScore,
 } from "./utils/scoring.js";
+import { fetchFromPubchem } from "./services/pubchemService.js";
+import { fetchFromChembl } from "./services/chemblService.js";
+import { loadLocalDataset } from "./services/datasetFallback.js";
 
 const app = express();
 const PORT = Number(process.env.PORT || 8080);
@@ -406,6 +409,65 @@ app.get("/api/candidates", async (req, res) => {
   }
 });
 
+// Adjacency precompute endpoint: accepts positions [[x,y],...] and returns neighbor index/weight buffer (Float32, base64)
+app.post("/api/adjacency", async (req, res) => {
+  try {
+    const positions = req.body.positions;
+    const kRequested = Number(req.body.k || 8);
+    if (!Array.isArray(positions) || positions.length === 0) {
+      return res.status(400).json({ error: "positions must be a non-empty array" });
+    }
+    const N = positions.length;
+    const Kcap = Math.min(16, Math.max(1, kRequested));
+
+    // compute pairwise distances
+    const distances = new Array(N);
+    for (let i = 0; i < N; i++) {
+      distances[i] = new Array(N);
+      for (let j = 0; j < N; j++) {
+        const dx = positions[i][0] - positions[j][0];
+        const dy = positions[i][1] - positions[j][1];
+        distances[i][j] = Math.sqrt(dx * dx + dy * dy);
+      }
+    }
+
+    const neighborData = new Float32Array(N * Kcap * 4);
+    for (let i = 0; i < N; i++) {
+      const idxs = Array.from({ length: N }, (_, j) => j).filter((j) => j !== i);
+      idxs.sort((a, b) => distances[i][a] - distances[i][b]);
+      const nearest = idxs.slice(0, Kcap);
+      const sigma = Math.max(1e-6, nearest.reduce((s, ni) => s + distances[i][ni], 0) / Math.max(1, nearest.length));
+      let sumw = 0;
+      const ws = [];
+      for (let k = 0; k < Kcap; k++) {
+        const ni = nearest[k] ?? i;
+        const d = distances[i][ni];
+        const w = Math.exp(-0.5 * (d * d) / (sigma * sigma + 1e-6));
+        ws.push(w);
+        sumw += w;
+      }
+      if (sumw <= 0) sumw = 1.0;
+      for (let k = 0; k < Kcap; k++) {
+        const ni = nearest[k] ?? i;
+        const w = ws[k] / sumw;
+        const base = (i * Kcap + k) * 4;
+        neighborData[base + 0] = ni;
+        neighborData[base + 1] = w;
+        neighborData[base + 2] = 0.0;
+        neighborData[base + 3] = 1.0;
+      }
+    }
+
+    // return as base64 to avoid JSON number bloat
+    const buf = Buffer.from(neighborData.buffer);
+    const b64 = buf.toString("base64");
+    return res.json({ ok: true, N, K: Kcap, neighborBase64: b64 });
+  } catch (error) {
+    console.error("Adjacency compute error:", error);
+    res.status(500).json({ error: String(error) });
+  }
+});
+
 // Get single candidate by ID
 app.get("/api/candidates/:id", async (req, res) => {
   try {
@@ -523,6 +585,101 @@ app.post("/api/chat", async (req, res) => {
     return res.json({ reply, provider: assistantProvider });
   } catch (error) {
     return res.status(500).json({ error: error.message || "Chat generation failed" });
+  }
+});
+
+// Live molecules endpoint with hybrid loader: PubChem -> ChEMBL -> Local JSON
+app.get("/api/live-molecules", async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(Number(req.query.limit ?? 50), 1), 1000);
+    const alpha = Number(req.query.alpha ?? 0.1); // neighborhood boosting factor
+    const neighborK = Math.max(1, Math.min(50, Number(req.query.k ?? 5)));
+    const timeoutMs = Math.max(1000, Number(req.query.timeoutMs ?? 3000));
+
+    let rows = [];
+    let source = null;
+
+    // Try PubChem first (best-effort)
+    try {
+      rows = await fetchFromPubchem({ limit, timeoutMs });
+      source = "pubchem";
+    } catch (pubErr) {
+      console.warn("PubChem fetch failed, trying ChEMBL:", pubErr.message || pubErr);
+      try {
+        rows = await fetchFromChembl({ limit, timeoutMs });
+        source = "chembl";
+      } catch (chemErr) {
+        console.warn("ChEMBL fetch failed, falling back to local dataset:", chemErr.message || chemErr);
+        rows = await loadLocalDataset({ limit });
+        source = "local";
+      }
+    }
+
+    // Normalize numeric fields and compute base score using existing scoring utility when possible
+    const normalized = rows.map((r) => ({
+      id: String(r.id ?? r.candidate_id ?? Math.random()),
+      name: r.name ?? null,
+      molecular_weight: Number(r.molecular_weight ?? r.MolecularWeight ?? NaN),
+      logP: Number(r.logP ?? r.xlogp ?? r.XLogP ?? NaN),
+      h_donors: Number(r.h_donors ?? r.hbond_donor_count ?? NaN),
+      h_acceptors: Number(r.h_acceptors ?? r.hbond_acceptor_count ?? NaN),
+      smiles: r.smiles ?? null,
+      source: r.source ?? source,
+    }));
+
+    // Compute a proxy efficacy/safety/complexity for each row if not present (simple heuristics)
+    const withScores = normalized.map((r) => {
+      const efficacy_index = Number(r.molecular_weight && Number.isFinite(r.molecular_weight) ? Math.max(0, Math.min(1, 1 - Math.abs(r.molecular_weight - 300) / 500)) : 0);
+      const safety_index = Number(Number.isFinite(r.logP) ? Math.max(0, Math.min(1, 1 - Math.abs(r.logP) / 6)) : 0);
+      const molecular_complexity = Number(Number.isFinite(r.h_donors + r.h_acceptors) ? Math.max(0, Math.min(1, (r.h_donors + r.h_acceptors) / 10)) : 0);
+
+      const baseScore = computeWeightedScore({ efficacy_index, safety_index, molecular_complexity }, defaultWeights);
+
+      return { ...r, efficacy_index, safety_index, molecular_complexity, baseScore };
+    });
+
+    // Neighborhood boosting: for each molecule, find k nearest by molecular_weight and average their baseScore
+    const sortedByMW = [...withScores].sort((a, b) => (Number(a.molecular_weight) || 0) - (Number(b.molecular_weight) || 0));
+
+    function findNeighborAvg(idx) {
+      const target = sortedByMW[idx];
+      if (!target) return 0;
+      // compute absolute differences
+      const diffs = sortedByMW.map((r, i) => ({ i, d: Math.abs((Number(r.molecular_weight) || 0) - (Number(target.molecular_weight) || 0)), score: r.baseScore }));
+      diffs.sort((a, b) => a.d - b.d);
+      const top = diffs.slice(1, 1 + neighborK); // exclude self at index 0
+      if (!top.length) return 0;
+      const sum = top.reduce((s, x) => s + Number(x.score || 0), 0);
+      return sum / top.length;
+    }
+
+    const boosted = sortedByMW.map((r, idx) => {
+      const neighborAvg = findNeighborAvg(idx);
+      const finalScore = Number((r.baseScore + alpha * neighborAvg).toFixed(6));
+      return { ...r, neighborAvg, finalScore };
+    });
+
+    // Softmax to probabilities
+    const exps = boosted.map((r) => Math.exp(r.finalScore));
+    const sumExp = exps.reduce((s, v) => s + v, 0) || 1;
+
+    const withProb = boosted.map((r, i) => ({
+      id: r.id,
+      name: r.name,
+      molecular_weight: r.molecular_weight,
+      logP: r.logP,
+      h_donors: r.h_donors,
+      h_acceptors: r.h_acceptors,
+      score: r.finalScore,
+      probability: Number((exps[i] / sumExp).toFixed(6)),
+      source: r.source,
+      smiles: r.smiles,
+    }));
+
+    return res.json({ source, count: withProb.length, items: withProb });
+  } catch (error) {
+    console.error("/api/live-molecules error:", error);
+    return res.status(500).json({ error: String(error) });
   }
 });
 
