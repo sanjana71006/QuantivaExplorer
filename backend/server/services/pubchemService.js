@@ -31,20 +31,20 @@ function normalizeCompoundRecord(record) {
   const cid = props.CID || props.cid || (props.Id && props.Id.Id) || null;
   return {
     id: cid,
-    name: props.IUPACName || props.Title || props.CommonName || (props.synonyms && props.synonyms[0]) || '',
+    name: props.IUPACName || props.Title || props.CommonName || (props.synonyms && props.synonyms[0]) || (cid ? `CID:${cid}` : 'Unknown'),
     molecular_weight: props.MolecularWeight ?? null,
     logP: props.XLogP ?? props.XLogP3 ?? null,
     h_donors: props.HBondDonorCount ?? null,
     h_acceptors: props.HBondAcceptorCount ?? null,
     tpsa: props.TPSA ?? null,
-    smiles: props.CanonicalSMILES ?? props.SMILES ?? null,
-    image_url: props.CID ? `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${props.CID}/PNG` : null,
+    smiles: props.CanonicalSMILES ?? props.ConnectivitySMILES ?? props.SMILES ?? null,
+    image_url: cid ? `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${cid}/PNG` : null,
   };
 }
 
 async function loadLocalDataset() {
   try {
-    const p = path.join(process.cwd(), 'backend', 'processed_dataset.json');
+    const p = path.join(__dirname, '..', '..', 'processed_dataset.json');
     if (!fs.existsSync(p)) return [];
     const raw = fs.readFileSync(p, 'utf8');
     const parsed = JSON.parse(raw);
@@ -59,20 +59,32 @@ export async function fetchCompoundByName(name) {
   const cached = getCache(key);
   if (cached) return { source: 'cache', items: cached };
 
-  const url = `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${encodeURIComponent(name)}/property/MolecularWeight,XLogP,HBondDonorCount,HBondAcceptorCount,TPSA,CanonicalSMILES,Title,CID/JSON`;
+  // Use CID-based flow since property-by-name endpoint is unreliable
+  // First get CIDs by name, then fetch properties by CID
+  const cidUrl = `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${encodeURIComponent(name)}/cids/JSON`;
   try {
-    const res = await fetchWithTimeout(url, { responseType: 'json' });
-    const data = res.data;
-    const props = data?.PropertyTable?.Properties || [];
-    if (props.length === 0) throw new Error('No properties');
-    const normalized = props.map(normalizeCompoundRecord);
-    setCache(key, normalized);
-    return { source: 'pubchem', items: normalized };
-  } catch (e) {
-    const local = await loadLocalDataset();
-    const matches = local.filter((row) => (String(row.name || '')).toLowerCase().includes(name.toLowerCase())).slice(0, 50);
-    return { source: 'local', items: matches };
+    const cidRes = await fetchWithTimeout(cidUrl, { responseType: 'json' });
+    const cids = cidRes.data?.IdentifierList?.CID || [];
+    if (Array.isArray(cids) && cids.length > 0) {
+      const limited = cids.slice(0, 50);
+      // Use only working PubChem property names
+      const propUrl = `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${limited.join(',')}/property/MolecularWeight,XLogP,HBondDonorCount,HBondAcceptorCount/JSON`;
+      const propRes = await fetchWithTimeout(propUrl, { responseType: 'json' });
+      const props = propRes.data?.PropertyTable?.Properties || [];
+      if (props.length > 0) {
+        const normalized = props.map(normalizeCompoundRecord);
+        setCache(key, normalized);
+        return { source: 'pubchem', items: normalized };
+      }
+    }
+  } catch (err) {
+    console.warn(`PubChem fetch failed for '${name}':`, err && err.message ? err.message : String(err));
   }
+
+  // Final fallback: local dataset
+  const local = await loadLocalDataset();
+  const matches = local.filter((row) => (String(row.name || '')).toLowerCase().includes(name.toLowerCase())).slice(0, 50);
+  return { source: 'local', items: matches };
 }
 
 export async function fetchCompoundsByKeyword(keyword) {
@@ -87,7 +99,8 @@ export async function fetchCompoundsByKeyword(keyword) {
     if (!Array.isArray(cids) || cids.length === 0) throw new Error('No CIDs');
     const limited = cids.slice(0, 50);
     const chunk = limited.join(',');
-    const propUrl = `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${encodeURIComponent(chunk)}/property/MolecularWeight,XLogP,HBondDonorCount,HBondAcceptorCount,TPSA,CanonicalSMILES,Title,CID/JSON`;
+    // Use only working PubChem property names
+    const propUrl = `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${chunk}/property/MolecularWeight,XLogP,HBondDonorCount,HBondAcceptorCount/JSON`;
     const propRes = await fetchWithTimeout(propUrl, { responseType: 'json' });
     const props = propRes.data?.PropertyTable?.Properties || [];
     const normalized = props.map(normalizeCompoundRecord);
@@ -105,19 +118,6 @@ export async function fetchCompoundsByKeyword(keyword) {
 
 export const _cache = cache;
 
-// Compatibility wrapper for existing live-molecules route
-export async function fetchFromPubchem({ limit = 50, timeoutMs = 3000 } = {}) {
-  try {
-    const resp = await fetchCompoundsByKeyword('drug');
-    const items = resp.items || [];
-    return items.slice(0, Math.min(limit, items.length));
-  } catch (e) {
-    // fallback to local dataset
-    const local = await loadLocalDataset();
-    return local.slice(0, Math.min(limit, local.length));
-  }
-}
-
 import fetch from "node-fetch";
 
 // Try to fetch a small set of compounds from PubChem. This implementation uses
@@ -126,7 +126,7 @@ import fetch from "node-fetch";
 // handled by throwing so the caller can fallback.
 
 const PUBCHEM_PROPERTY_URL = (cids) =>
-  `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${cids}/property/MolecularWeight,XLogP,HBondDonorCount,HBondAcceptorCount,IUPACName/JSON`;
+  `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${cids}/property/MolecularWeight,XLogP,HBondDonorCount,HBondAcceptorCount/JSON`;
 
 export async function fetchFromPubchem({ limit = 50, timeoutMs = 3000 } = {}) {
   // Simple strategy: fetch a small page of CIDs from PubChem's compound 'list' by querying a common name.

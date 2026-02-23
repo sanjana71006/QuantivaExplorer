@@ -11,42 +11,54 @@ export interface MoleculeExplanation {
 }
 
 export function explainMolecule(mol: ScoredMolecule): MoleculeExplanation {
-  const bd = mol.score_breakdown;
+  const bd = mol.score_breakdown ?? { binding: 0, toxicity: 0, solubility: 0, mw: 0, logP: 0 };
+
+  // Handle missing properties gracefully
+  const weightedScore = mol.weighted_score ?? mol.score ?? 0;
+  const prob = mol.probability ?? 0;
+  const diseaseTarget = mol.disease_target ?? mol.source ?? "unknown";
+  const lipinskiCompliant = mol.lipinski_compliant ?? true;
+  const toxicityRisk = mol.toxicity_risk ?? 0;
+  const solubility = mol.solubility ?? 0;
+  const molecularWeight = mol.molecular_weight ?? 0;
+  const logP = mol.logP ?? 0;
+  const polarSurfaceArea = mol.polar_surface_area ?? 0;
+  const rotatableBonds = mol.rotatable_bonds ?? 0;
 
   // Summary
-  const quality = mol.weighted_score >= 0.7 ? "highly promising" : mol.weighted_score >= 0.5 ? "moderately promising" : "below average";
-  const summary = `${mol.name} is a ${quality} drug candidate with a weighted score of ${mol.weighted_score.toFixed(3)} and a softmax probability of ${(mol.probability * 100).toFixed(2)}%. It originates from the ${mol.disease_target} source partition and ${mol.lipinski_compliant ? "fully complies with" : "violates"} Lipinski's Rule of Five.`;
+  const quality = weightedScore >= 0.7 ? "highly promising" : weightedScore >= 0.5 ? "moderately promising" : "below average";
+  const summary = `${mol.name || 'Unknown'} is a ${quality} drug candidate with a weighted score of ${weightedScore.toFixed(3)} and a softmax probability of ${(prob * 100).toFixed(2)}%. It originates from the ${diseaseTarget} source partition and ${lipinskiCompliant ? "fully complies with" : "violates"} Lipinski's Rule of Five.`;
 
   // Strengths
   const strengths: string[] = [];
   if (bd.binding >= 0.7) strengths.push(`Strong binding affinity score (${bd.binding.toFixed(2)}) suggests effective target interaction`);
-  if (bd.toxicity >= 0.7) strengths.push(`Low toxicity risk (${mol.toxicity_risk.toFixed(3)}) indicates a favorable safety profile`);
-  if (bd.solubility >= 0.6) strengths.push(`Good aqueous solubility (${mol.solubility.toFixed(3)}) supports oral bioavailability`);
-  if (mol.lipinski_compliant) strengths.push("Fully compliant with Lipinski's Rule of Five for drug-likeness");
-  if (bd.mw >= 0.6) strengths.push(`Molecular weight (${mol.molecular_weight} Da) is within the optimal range for absorption`);
-  if (bd.logP >= 0.6) strengths.push(`LogP (${mol.logP}) indicates balanced lipophilicity for membrane permeation`);
-  if (mol.polar_surface_area < 140) strengths.push(`Polar surface area (${mol.polar_surface_area} Å²) is favorable for oral absorption`);
+  if (bd.toxicity >= 0.7) strengths.push(`Low toxicity risk (${toxicityRisk.toFixed(3)}) indicates a favorable safety profile`);
+  if (bd.solubility >= 0.6) strengths.push(`Good aqueous solubility (${solubility.toFixed(3)}) supports oral bioavailability`);
+  if (lipinskiCompliant) strengths.push("Fully compliant with Lipinski's Rule of Five for drug-likeness");
+  if (bd.mw >= 0.6) strengths.push(`Molecular weight (${molecularWeight} Da) is within the optimal range for absorption`);
+  if (bd.logP >= 0.6) strengths.push(`LogP (${logP}) indicates balanced lipophilicity for membrane permeation`);
+  if (polarSurfaceArea > 0 && polarSurfaceArea < 140) strengths.push(`Polar surface area (${polarSurfaceArea} Å²) is favorable for oral absorption`);
   if (strengths.length === 0) strengths.push("Quantum probability diffusion revealed hidden structural advantages");
 
   // Risks
   const risks: string[] = [];
-  if (bd.toxicity < 0.5) risks.push(`Elevated toxicity risk (${mol.toxicity_risk.toFixed(3)}) requires further safety evaluation`);
-  if (!mol.lipinski_compliant) risks.push("Violates one or more Lipinski rules, which may limit oral bioavailability");
-  if (bd.solubility < 0.4) risks.push(`Poor solubility (${mol.solubility.toFixed(3)}) may necessitate formulation strategies`);
-  if (mol.molecular_weight > 500) risks.push(`High molecular weight (${mol.molecular_weight} Da) may reduce absorption`);
-  if (mol.logP > 5) risks.push(`High LogP (${mol.logP}) suggests excessive lipophilicity and potential metabolic liability`);
-  if (mol.rotatable_bonds > 10) risks.push(`High rotatable bond count (${mol.rotatable_bonds}) may reduce oral bioavailability`);
-  if (mol.polar_surface_area > 140) risks.push(`High PSA (${mol.polar_surface_area} Å²) could limit intestinal absorption`);
+  if (bd.toxicity < 0.5 && bd.toxicity > 0) risks.push(`Elevated toxicity risk (${toxicityRisk.toFixed(3)}) requires further safety evaluation`);
+  if (!lipinskiCompliant) risks.push("Violates one or more Lipinski rules, which may limit oral bioavailability");
+  if (bd.solubility < 0.4 && bd.solubility > 0) risks.push(`Poor solubility (${solubility.toFixed(3)}) may necessitate formulation strategies`);
+  if (molecularWeight > 500) risks.push(`High molecular weight (${molecularWeight} Da) may reduce absorption`);
+  if (logP > 5) risks.push(`High LogP (${logP}) suggests excessive lipophilicity and potential metabolic liability`);
+  if (rotatableBonds > 10) risks.push(`High rotatable bond count (${rotatableBonds}) may reduce oral bioavailability`);
+  if (polarSurfaceArea > 140) risks.push(`High PSA (${polarSurfaceArea} Å²) could limit intestinal absorption`);
   if (risks.length === 0) risks.push("No significant risks identified at this screening stage");
 
   // Verdict
   let verdict: string;
-  if (mol.weighted_score >= 0.75 && mol.lipinski_compliant && bd.toxicity >= 0.6) {
-    verdict = `${mol.name} is an excellent candidate for advancement to lead optimization, showing strong drug-like properties and a favorable safety profile.`;
-  } else if (mol.weighted_score >= 0.55) {
-    verdict = `${mol.name} shows moderate potential and warrants further investigation, though some properties may need optimization.`;
+  if (weightedScore >= 0.75 && lipinskiCompliant && bd.toxicity >= 0.6) {
+    verdict = `${mol.name || 'This compound'} is an excellent candidate for advancement to lead optimization, showing strong drug-like properties and a favorable safety profile.`;
+  } else if (weightedScore >= 0.55) {
+    verdict = `${mol.name || 'This compound'} shows moderate potential and warrants further investigation, though some properties may need optimization.`;
   } else {
-    verdict = `${mol.name} is unlikely to advance without significant structural modifications to improve its drug-like properties.`;
+    verdict = `${mol.name || 'This compound'} is unlikely to advance without significant structural modifications to improve its drug-like properties.`;
   }
 
   // Lipinski details

@@ -32,9 +32,10 @@ export default function SearchBar({ onResults }: SearchBarProps) {
 
   return (
     <form onSubmit={doSearch} className="flex items-center gap-3 w-full">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">Search by</div>
       <div className="flex items-center gap-2">
-        <label className={`btn btn-xs ${mode === 'name' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setMode('name')}>Name</label>
-        <label className={`btn btn-xs ${mode === 'disease' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setMode('disease')}>Disease</label>
+        <label aria-pressed={mode === 'name'} className={`btn btn-xs ${mode === 'name' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setMode('name')}>Name</label>
+        <label aria-pressed={mode === 'disease'} className={`btn btn-xs ${mode === 'disease' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setMode('disease')}>Disease</label>
       </div>
       <input
         placeholder={mode === "name" ? "Search molecule name (e.g. aspirin)" : "Search disease keyword (e.g. cancer)"}

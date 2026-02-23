@@ -15,7 +15,6 @@ import ApiStatusBadge from "@/components/ApiStatusBadge";
 import SearchBar from "@/components/SearchBar";
 import DataSourceBadge from "@/components/DataSourceBadge";
 const ChemicalUniverse3D = lazy(() => import("@/components/ChemicalUniverse3D"));
-import ProbabilityFlowMap from "@/components/ProbabilityFlowMap";
 import type { ScoredMolecule } from "@/lib/quantumEngine";
 
 const diseaseColors: Record<string, string> = {
@@ -382,26 +381,7 @@ const Visualization = () => {
             </motion.div>
           )}
 
-          {/* GPU Probability Flow Map */}
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-display font-semibold text-foreground flex items-center gap-2">
-                <Atom className="h-4 w-4 text-primary" />
-                Probability Flow Map (GPU)
-              </h3>
-              <p className="text-xs text-muted-foreground">Animated diffusion across embedding space</p>
-            </div>
-            <ProbabilityFlowMap
-              molecules={displayedMolecules.slice(0, 500).map((m) => ({ pca_x: m.pca_x, pca_y: m.pca_y, probability: m.probability || 0, id: m.molecule_id }))}
-              size={128}
-              onTopIndices={(indices: number[]) => {
-                // map indices back to molecule ids and set attractors
-                const subset = filtered.slice(0, 500);
-                const ids = indices.map((i) => subset[i]?.molecule_id).filter(Boolean) as string[];
-                setAttractorIds(ids);
-              }}
-            />
-          </motion.div>
+          {/* Probability Flow Map removed */}
         </>
       ) : (
         <div className="grid lg:grid-cols-2 gap-4 divide-x divide-border">
@@ -431,17 +411,7 @@ const Visualization = () => {
                   outbreak={outbreakMode}
                 />
               </Suspense>
-              <div className="mt-3">
-                <ProbabilityFlowMap
-                  molecules={displayedMolecules.slice(0, 500).map((m) => ({ pca_x: m.pca_x, pca_y: m.pca_y, probability: m.probability || 0, id: m.molecule_id }))}
-                  size={128}
-                  onTopIndices={(indices: number[]) => {
-                    const subset = filtered.slice(0, 500);
-                    const ids = indices.map((i) => subset[i]?.molecule_id).filter(Boolean) as string[];
-                    setAttractorIds(ids);
-                  }}
-                />
-              </div>
+              {/* Probability Flow Map removed */}
             </div>
           </motion.div>
         </div>
