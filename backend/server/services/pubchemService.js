@@ -1,3 +1,123 @@
+import axios from 'axios';
+import path from 'path';
+import fs from 'fs';
+
+// Simple in-memory cache
+const cache = new Map();
+const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
+function setCache(key, value) {
+  cache.set(key, { value, ts: Date.now() });
+}
+
+function getCache(key) {
+  const v = cache.get(key);
+  if (!v) return null;
+  if (Date.now() - v.ts > CACHE_TTL) {
+    cache.delete(key);
+    return null;
+  }
+  return v.value;
+}
+
+async function fetchWithTimeout(url, opts = {}) {
+  const instance = axios.create({ timeout: 3000 });
+  const res = await instance.get(url, opts);
+  return res;
+}
+
+function normalizeCompoundRecord(record) {
+  const props = record;
+  const cid = props.CID || props.cid || (props.Id && props.Id.Id) || null;
+  return {
+    id: cid,
+    name: props.IUPACName || props.Title || props.CommonName || (props.synonyms && props.synonyms[0]) || '',
+    molecular_weight: props.MolecularWeight ?? null,
+    logP: props.XLogP ?? props.XLogP3 ?? null,
+    h_donors: props.HBondDonorCount ?? null,
+    h_acceptors: props.HBondAcceptorCount ?? null,
+    tpsa: props.TPSA ?? null,
+    smiles: props.CanonicalSMILES ?? props.SMILES ?? null,
+    image_url: props.CID ? `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${props.CID}/PNG` : null,
+  };
+}
+
+async function loadLocalDataset() {
+  try {
+    const p = path.join(process.cwd(), 'backend', 'processed_dataset.json');
+    if (!fs.existsSync(p)) return [];
+    const raw = fs.readFileSync(p, 'utf8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : (parsed?.rows || []);
+  } catch (e) {
+    return [];
+  }
+}
+
+export async function fetchCompoundByName(name) {
+  const key = `compound_${name.toLowerCase()}`;
+  const cached = getCache(key);
+  if (cached) return { source: 'cache', items: cached };
+
+  const url = `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${encodeURIComponent(name)}/property/MolecularWeight,XLogP,HBondDonorCount,HBondAcceptorCount,TPSA,CanonicalSMILES,Title,CID/JSON`;
+  try {
+    const res = await fetchWithTimeout(url, { responseType: 'json' });
+    const data = res.data;
+    const props = data?.PropertyTable?.Properties || [];
+    if (props.length === 0) throw new Error('No properties');
+    const normalized = props.map(normalizeCompoundRecord);
+    setCache(key, normalized);
+    return { source: 'pubchem', items: normalized };
+  } catch (e) {
+    const local = await loadLocalDataset();
+    const matches = local.filter((row) => (String(row.name || '')).toLowerCase().includes(name.toLowerCase())).slice(0, 50);
+    return { source: 'local', items: matches };
+  }
+}
+
+export async function fetchCompoundsByKeyword(keyword) {
+  const key = `keyword_${keyword.toLowerCase()}`;
+  const cached = getCache(key);
+  if (cached) return { source: 'cache', items: cached };
+
+  const cidUrl = `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${encodeURIComponent(keyword)}/cids/JSON`;
+  try {
+    const cidRes = await fetchWithTimeout(cidUrl, { responseType: 'json' });
+    const cids = cidRes.data?.IdentifierList?.CID || [];
+    if (!Array.isArray(cids) || cids.length === 0) throw new Error('No CIDs');
+    const limited = cids.slice(0, 50);
+    const chunk = limited.join(',');
+    const propUrl = `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${encodeURIComponent(chunk)}/property/MolecularWeight,XLogP,HBondDonorCount,HBondAcceptorCount,TPSA,CanonicalSMILES,Title,CID/JSON`;
+    const propRes = await fetchWithTimeout(propUrl, { responseType: 'json' });
+    const props = propRes.data?.PropertyTable?.Properties || [];
+    const normalized = props.map(normalizeCompoundRecord);
+    setCache(key, normalized);
+    return { source: 'pubchem', items: normalized };
+  } catch (e) {
+    const local = await loadLocalDataset();
+    const matches = local.filter((row) => {
+      const txt = ((row.name || '') + ' ' + (row.disease_target || '') + ' ' + (row.description || '')).toLowerCase();
+      return txt.includes(keyword.toLowerCase());
+    }).slice(0, 50);
+    return { source: 'local', items: matches };
+  }
+}
+
+export const _cache = cache;
+
+// Compatibility wrapper for existing live-molecules route
+export async function fetchFromPubchem({ limit = 50, timeoutMs = 3000 } = {}) {
+  try {
+    const resp = await fetchCompoundsByKeyword('drug');
+    const items = resp.items || [];
+    return items.slice(0, Math.min(limit, items.length));
+  } catch (e) {
+    // fallback to local dataset
+    const local = await loadLocalDataset();
+    return local.slice(0, Math.min(limit, local.length));
+  }
+}
+
 import fetch from "node-fetch";
 
 // Try to fetch a small set of compounds from PubChem. This implementation uses

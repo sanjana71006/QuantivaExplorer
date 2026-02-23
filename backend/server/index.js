@@ -18,7 +18,7 @@ import {
   rankCandidates,
   computeWeightedScore,
 } from "./utils/scoring.js";
-import { fetchFromPubchem } from "./services/pubchemService.js";
+import { fetchFromPubchem, fetchCompoundByName, fetchCompoundsByKeyword } from "./services/pubchemService.js";
 import { fetchFromChembl } from "./services/chemblService.js";
 import { loadLocalDataset } from "./services/datasetFallback.js";
 
@@ -492,6 +492,75 @@ app.get("/api/candidates/:id", async (req, res) => {
     return res.json(row);
   } catch (error) {
     return res.status(500).json({ error: error.message });
+  }
+});
+
+// Fetch live compound by name (PubChem, fallback local)
+app.get("/api/molecule/:name", async (req, res) => {
+  try {
+    const name = String(req.params.name || "").trim();
+    if (!name) return res.status(400).json({ error: "name required" });
+
+    const result = await fetchCompoundByName(name);
+    const source = result.source || (result.items && result.items.length ? 'pubchem' : 'local');
+    const items = (result.items || []).slice(0, 50);
+
+    // compute simple scores for each item using heuristics and existing scoring util
+    const scored = items.map((it) => {
+      const mw = Number(it.molecular_weight) || NaN;
+      const logP = Number(it.logP) || NaN;
+      const donors = Number(it.h_donors) || 0;
+      const acceptors = Number(it.h_acceptors) || 0;
+      const efficacy_index = Number.isFinite(mw) ? Math.max(0, Math.min(1, 1 - Math.abs(mw - 300) / 500)) : 0;
+      const safety_index = Number.isFinite(logP) ? Math.max(0, Math.min(1, 1 - Math.abs(logP) / 6)) : 0;
+      const molecular_complexity = Math.max(0, Math.min(1, (donors + acceptors) / 10));
+      const weighted = computeWeightedScore({ efficacy_index, safety_index, molecular_complexity }, defaultWeights);
+      return { ...it, efficacy_index, safety_index, molecular_complexity, weighted_score: weighted };
+    });
+
+    // softmax
+    const exps = scored.map((s) => Math.exp(s.weighted_score));
+    const sumExp = exps.reduce((a, b) => a + b, 0) || 1;
+    const withProb = scored.map((s, i) => ({ ...s, probability: Number((exps[i] / sumExp).toFixed(6)) }));
+
+    return res.json({ source, count: withProb.length, items: withProb });
+  } catch (error) {
+    console.error('/api/molecule error:', error);
+    return res.status(500).json({ error: String(error) });
+  }
+});
+
+// Search by disease/keyword -> returns compounds
+app.get("/api/disease-search", async (req, res) => {
+  try {
+    const q = String(req.query.query || req.query.q || "").trim();
+    if (!q) return res.status(400).json({ error: "query parameter is required" });
+
+    const result = await fetchCompoundsByKeyword(q);
+    const source = result.source || (result.items && result.items.length ? 'pubchem' : 'local');
+    const items = (result.items || []).slice(0, 50);
+
+    // score and softmax
+    const scored = items.map((it) => {
+      const mw = Number(it.molecular_weight) || NaN;
+      const logP = Number(it.logP) || NaN;
+      const donors = Number(it.h_donors) || 0;
+      const acceptors = Number(it.h_acceptors) || 0;
+      const efficacy_index = Number.isFinite(mw) ? Math.max(0, Math.min(1, 1 - Math.abs(mw - 300) / 500)) : 0;
+      const safety_index = Number.isFinite(logP) ? Math.max(0, Math.min(1, 1 - Math.abs(logP) / 6)) : 0;
+      const molecular_complexity = Math.max(0, Math.min(1, (donors + acceptors) / 10));
+      const weighted_score = computeWeightedScore({ efficacy_index, safety_index, molecular_complexity }, defaultWeights);
+      return { ...it, efficacy_index, safety_index, molecular_complexity, weighted_score };
+    });
+
+    const exps = scored.map((s) => Math.exp(s.weighted_score));
+    const sumExp = exps.reduce((a, b) => a + b, 0) || 1;
+    const withProb = scored.map((s, i) => ({ ...s, probability: Number((exps[i] / sumExp).toFixed(6)) }));
+
+    return res.json({ source, count: withProb.length, items: withProb });
+  } catch (error) {
+    console.error('/api/disease-search error:', error);
+    return res.status(500).json({ error: String(error) });
   }
 });
 
