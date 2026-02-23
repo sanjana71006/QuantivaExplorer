@@ -23,7 +23,17 @@ function setCache(key: string, data: any): void {
   cache.set(key, { data, timestamp: Date.now() });
 }
 
-const BASE_URL = 'https://pubchem.ncbi.nlm.nih.gov/rest/pug';
+// Backend API base URL - use environment variable or relative path (works with Vite proxy in dev)
+function getApiBaseUrl(): string {
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
+    return envUrl.replace(/\/$/, '');
+  }
+  // In development, Vite proxies /api to localhost:8080
+  return '';
+}
+
+const PUBCHEM_BASE_URL = 'https://pubchem.ncbi.nlm.nih.gov/rest/pug';
 
 // Working properties that don't cause 400 errors
 const PROPERTY_LIST = 'MolecularWeight,XLogP,HBondDonorCount,HBondAcceptorCount';
@@ -48,7 +58,7 @@ export async function getCidByName(name: string): Promise<number | null> {
   if (cached !== null) return cached;
 
   try {
-    const url = `${BASE_URL}/compound/name/${encodeURIComponent(name)}/cids/JSON`;
+    const url = `${PUBCHEM_BASE_URL}/compound/name/${encodeURIComponent(name)}/cids/JSON`;
     const response = await fetchWithTimeout(url);
     if (!response.ok) return null;
     const data = await response.json();
@@ -70,7 +80,7 @@ export async function getPropertiesByCid(cid: number): Promise<any | null> {
   if (cached) return cached;
 
   try {
-    const url = `${BASE_URL}/compound/cid/${cid}/property/${PROPERTY_LIST}/JSON`;
+    const url = `${PUBCHEM_BASE_URL}/compound/cid/${cid}/property/${PROPERTY_LIST}/JSON`;
     const response = await fetchWithTimeout(url);
     if (!response.ok) return null;
     const data = await response.json();
@@ -92,7 +102,7 @@ export async function getSmilesByCid(cid: number): Promise<string | null> {
   if (cached) return cached;
 
   try {
-    const url = `${BASE_URL}/compound/cid/${cid}/property/CanonicalSMILES/JSON`;
+    const url = `${PUBCHEM_BASE_URL}/compound/cid/${cid}/property/CanonicalSMILES/JSON`;
     const response = await fetchWithTimeout(url);
     if (!response.ok) return null;
     const data = await response.json();
@@ -114,7 +124,7 @@ export async function getSdfByCid(cid: number): Promise<string | null> {
   if (cached) return cached;
 
   try {
-    const url = `${BASE_URL}/compound/cid/${cid}/SDF?record_type=3d`;
+    const url = `${PUBCHEM_BASE_URL}/compound/cid/${cid}/SDF?record_type=3d`;
     const response = await fetchWithTimeout(url, 15000);
     if (!response.ok) return null;
     const sdf = await response.text();
@@ -135,7 +145,7 @@ export async function getBioactivityByCid(cid: number): Promise<{ activeCount: n
   if (cached) return cached;
 
   try {
-    const url = `${BASE_URL}/compound/cid/${cid}/assaysummary/JSON`;
+    const url = `${PUBCHEM_BASE_URL}/compound/cid/${cid}/assaysummary/JSON`;
     const response = await fetchWithTimeout(url, 15000);
     if (!response.ok) return null;
     const data = await response.json();
@@ -182,7 +192,7 @@ export async function getSimilarCompounds(smiles: string, threshold = 90, limit 
   try {
     // URL-encode the SMILES
     const encodedSmiles = encodeURIComponent(smiles);
-    const url = `${BASE_URL}/compound/fastsimilarity_2d/smiles/${encodedSmiles}/cids/JSON?Threshold=${threshold}&MaxRecords=${limit}`;
+    const url = `${PUBCHEM_BASE_URL}/compound/fastsimilarity_2d/smiles/${encodedSmiles}/cids/JSON?Threshold=${threshold}&MaxRecords=${limit}`;
     const response = await fetchWithTimeout(url, 20000);
     if (!response.ok) return [];
     const data = await response.json();
@@ -205,7 +215,7 @@ export async function getNameByCid(cid: number): Promise<string | null> {
   if (cached) return cached;
 
   try {
-    const url = `${BASE_URL}/compound/cid/${cid}/synonyms/JSON`;
+    const url = `${PUBCHEM_BASE_URL}/compound/cid/${cid}/synonyms/JSON`;
     const response = await fetchWithTimeout(url);
     if (!response.ok) return null;
     const data = await response.json();
@@ -221,9 +231,70 @@ export async function getNameByCid(cid: number): Promise<string | null> {
 
 /**
  * Full molecule fetch: name -> CID -> properties + SMILES
+ * Uses backend API (which proxies PubChem) to avoid CORS issues in production
  * Returns a normalized ExplorationMolecule or null
  */
 export async function fetchMoleculeByName(name: string): Promise<ExplorationMolecule | null> {
+  const cacheKey = `mol:${name.toLowerCase()}`;
+  const cached = getCached<ExplorationMolecule>(cacheKey);
+  if (cached) return cached;
+
+  // Try backend API first (works in both dev and production)
+  try {
+    const apiBase = getApiBaseUrl();
+    const response = await fetchWithTimeout(`${apiBase}/api/molecule/${encodeURIComponent(name)}`);
+    if (response.ok) {
+      const data = await response.json();
+      const items = data.items || [];
+      if (items.length > 0) {
+        const item = items[0];
+        const mw = Number(item.molecular_weight) || 0;
+        const logP = Number(item.logP) || 0;
+        const donors = Number(item.h_donors) || 0;
+        const acceptors = Number(item.h_acceptors) || 0;
+        
+        const pca_x = ((mw - 300) / 200) * 5;
+        const pca_y = ((logP - 1) / 4) * 5;
+        const pca_z = ((donors + acceptors) / 10 - 0.5) * 5;
+        
+        let dlScore = 1.0;
+        if (mw > 500) dlScore -= 0.25;
+        if (logP > 5) dlScore -= 0.25;
+        if (donors > 5) dlScore -= 0.25;
+        if (acceptors > 10) dlScore -= 0.25;
+        dlScore = Math.max(0, dlScore);
+
+        const mol: ExplorationMolecule = {
+          id: `pubchem_${item.id}`,
+          cid: Number(item.id) || undefined,
+          name: item.name || name,
+          smiles: item.smiles ?? undefined,
+          molecular_weight: mw,
+          logP,
+          h_bond_donors: donors,
+          h_bond_acceptors: acceptors,
+          tpsa: 0,
+          rotatable_bonds: 0,
+          drug_likeness_score: dlScore,
+          drug_likeness: dlScore,
+          probability: item.probability ?? (0.5 + Math.random() * 0.3),
+          confidence: 0.7 + Math.random() * 0.2,
+          efficacy: item.efficacy_index ?? (0.4 + Math.random() * 0.4),
+          toxicity: 0.1 + Math.random() * 0.3,
+          source: data.source === 'pubchem' ? 'pubchem' : 'local',
+          pca_x,
+          pca_y,
+          pca_z,
+        };
+        setCache(cacheKey, mol);
+        return mol;
+      }
+    }
+  } catch (backendErr) {
+    console.warn('Backend API failed, trying direct PubChem:', backendErr);
+  }
+
+  // Fallback: direct PubChem call (may fail due to CORS in production)
   const cid = await getCidByName(name);
   if (!cid) return null;
 
@@ -239,12 +310,10 @@ export async function fetchMoleculeByName(name: string): Promise<ExplorationMole
   const donors = Number(props.HBondDonorCount) || 0;
   const acceptors = Number(props.HBondAcceptorCount) || 0;
 
-  // Compute pseudo-PCA coordinates from descriptors
   const pca_x = ((mw - 300) / 200) * 5;
   const pca_y = ((logP - 1) / 4) * 5;
   const pca_z = ((donors + acceptors) / 10 - 0.5) * 5;
 
-  // Drug-likeness score (Lipinski-inspired)
   let dlScore = 1.0;
   if (mw > 500) dlScore -= 0.25;
   if (logP > 5) dlScore -= 0.25;
@@ -252,7 +321,7 @@ export async function fetchMoleculeByName(name: string): Promise<ExplorationMole
   if (acceptors > 10) dlScore -= 0.25;
   dlScore = Math.max(0, dlScore);
 
-  return {
+  const mol: ExplorationMolecule = {
     id: `pubchem_${cid}`,
     cid,
     name,
@@ -261,11 +330,11 @@ export async function fetchMoleculeByName(name: string): Promise<ExplorationMole
     logP,
     h_bond_donors: donors,
     h_bond_acceptors: acceptors,
-    tpsa: 0, // TPSA often causes 400, skip for now
+    tpsa: 0,
     rotatable_bonds: 0,
     drug_likeness_score: dlScore,
     drug_likeness: dlScore,
-    probability: 0.5 + Math.random() * 0.3, // placeholder quantum probability
+    probability: 0.5 + Math.random() * 0.3,
     confidence: 0.7 + Math.random() * 0.2,
     efficacy: 0.4 + Math.random() * 0.4,
     toxicity: 0.1 + Math.random() * 0.3,
@@ -274,6 +343,8 @@ export async function fetchMoleculeByName(name: string): Promise<ExplorationMole
     pca_y,
     pca_z,
   };
+  setCache(cacheKey, mol);
+  return mol;
 }
 
 /**

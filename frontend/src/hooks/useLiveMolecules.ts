@@ -1,5 +1,14 @@
 import { useEffect, useState, useRef } from "react";
 
+// Get API base URL from environment or use relative path for Vite proxy
+function getApiBaseUrl(): string {
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
+    return envUrl.replace(/\/$/, '');
+  }
+  return '';
+}
+
 type LiveMolecule = {
   id: string;
   name?: string | null;
@@ -33,7 +42,8 @@ export function useLiveMolecules(opts?: { limit?: number; alpha?: number }) {
     const timer = setTimeout(() => controller.abort(), Math.max(1000, timeoutMs));
 
     try {
-      const url = `/api/live-molecules?limit=${limit}&alpha=${alpha}&timeoutMs=${timeoutMs}`;
+      const apiBase = getApiBaseUrl();
+      const url = `${apiBase}/api/live-molecules?limit=${limit}&alpha=${alpha}&timeoutMs=${timeoutMs}`;
       const res = await fetch(url, { signal: controller.signal });
       clearTimeout(timer);
       if (!res.ok) throw new Error(`API ${res.status}`);
