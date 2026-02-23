@@ -35,8 +35,8 @@ function getApiBaseUrl(): string {
 
 const PUBCHEM_BASE_URL = 'https://pubchem.ncbi.nlm.nih.gov/rest/pug';
 
-// Working properties that don't cause 400 errors
-const PROPERTY_LIST = 'MolecularWeight,XLogP,HBondDonorCount,HBondAcceptorCount';
+// Working properties including IUPACName for display
+const PROPERTY_LIST = 'IUPACName,Title,MolecularWeight,XLogP,HBondDonorCount,HBondAcceptorCount';
 
 async function fetchWithTimeout(url: string, timeout = 10000): Promise<Response> {
   const controller = new AbortController();
@@ -264,10 +264,15 @@ export async function fetchMoleculeByName(name: string): Promise<ExplorationMole
         if (acceptors > 10) dlScore -= 0.25;
         dlScore = Math.max(0, dlScore);
 
+        // Prefer the search query as the display name (e.g., "aspirin" instead of IUPAC name)
+        // Fall back to API name if it doesn't start with "CID:"
+        const apiName = item.name || '';
+        const displayName = apiName.startsWith('CID:') ? name : (name || apiName);
+        
         const mol: ExplorationMolecule = {
           id: `pubchem_${item.id}`,
           cid: Number(item.id) || undefined,
-          name: item.name || name,
+          name: displayName,
           smiles: item.smiles ?? undefined,
           molecular_weight: mw,
           logP,

@@ -26,12 +26,14 @@ async function fetchWithTimeout(url, opts = {}) {
   return res;
 }
 
-function normalizeCompoundRecord(record) {
+function normalizeCompoundRecord(record, searchName = null) {
   const props = record;
   const cid = props.CID || props.cid || (props.Id && props.Id.Id) || null;
+  // Prefer searchName (user query) for display, then IUPACName, then fallback
+  const displayName = searchName || props.IUPACName || props.Title || props.CommonName || (props.synonyms && props.synonyms[0]) || (cid ? `CID:${cid}` : 'Unknown');
   return {
     id: cid,
-    name: props.IUPACName || props.Title || props.CommonName || (props.synonyms && props.synonyms[0]) || (cid ? `CID:${cid}` : 'Unknown'),
+    name: displayName,
     molecular_weight: props.MolecularWeight ?? null,
     logP: props.XLogP ?? props.XLogP3 ?? null,
     h_donors: props.HBondDonorCount ?? null,
@@ -67,8 +69,8 @@ export async function fetchCompoundByName(name) {
     const cids = cidRes.data?.IdentifierList?.CID || [];
     if (Array.isArray(cids) && cids.length > 0) {
       const limited = cids.slice(0, 50);
-      // Use only working PubChem property names
-      const propUrl = `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${limited.join(',')}/property/MolecularWeight,XLogP,HBondDonorCount,HBondAcceptorCount/JSON`;
+      // Use working PubChem property names including IUPACName for display
+      const propUrl = `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${limited.join(',')}/property/IUPACName,Title,MolecularWeight,XLogP,HBondDonorCount,HBondAcceptorCount/JSON`;
       const propRes = await fetchWithTimeout(propUrl, { responseType: 'json' });
       const props = propRes.data?.PropertyTable?.Properties || [];
       if (props.length > 0) {
@@ -99,8 +101,8 @@ export async function fetchCompoundsByKeyword(keyword) {
     if (!Array.isArray(cids) || cids.length === 0) throw new Error('No CIDs');
     const limited = cids.slice(0, 50);
     const chunk = limited.join(',');
-    // Use only working PubChem property names
-    const propUrl = `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${chunk}/property/MolecularWeight,XLogP,HBondDonorCount,HBondAcceptorCount/JSON`;
+    // Use working PubChem property names including IUPACName for display
+    const propUrl = `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${chunk}/property/IUPACName,Title,MolecularWeight,XLogP,HBondDonorCount,HBondAcceptorCount/JSON`;
     const propRes = await fetchWithTimeout(propUrl, { responseType: 'json' });
     const props = propRes.data?.PropertyTable?.Properties || [];
     const normalized = props.map(normalizeCompoundRecord);
@@ -126,7 +128,7 @@ import fetch from "node-fetch";
 // handled by throwing so the caller can fallback.
 
 const PUBCHEM_PROPERTY_URL = (cids) =>
-  `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${cids}/property/MolecularWeight,XLogP,HBondDonorCount,HBondAcceptorCount/JSON`;
+  `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${cids}/property/IUPACName,Title,MolecularWeight,XLogP,HBondDonorCount,HBondAcceptorCount/JSON`;
 
 export async function fetchFromPubchem({ limit = 50, timeoutMs = 3000 } = {}) {
   // Simple strategy: fetch a small page of CIDs from PubChem's compound 'list' by querying a common name.
