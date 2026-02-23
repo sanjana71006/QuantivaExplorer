@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Bot, Send, X } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
 
 type ChatMessage = {
   role: "assistant" | "user";
@@ -18,17 +19,29 @@ const greeting =
   "Hi! I’m Quantiva Assistant 👋 Ask me anything about your molecule scoring, filters, and results.";
 
 async function fetchChatReply(message: string, history: ChatMessage[]) {
-  const base = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
-  const urls = base ? [`${base}/api/chat`] : ["/api/chat", "http://localhost:8080/api/chat"];
+  const envBase = String(import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
   const REQUEST_TIMEOUT_MS = 10000;
+
+  // Candidate base URLs to try in order:
+  // 1. Vite env (build-time)
+  // 2. Same-origin /api (when frontend and backend are hosted together)
+  // 3. Relative /api
+  // 4. Localhost fallback for development
+  const sameOrigin = `${window.location.origin.replace(/\/$/, "")}/api`;
+  const urls = [] as string[];
+  if (envBase) urls.push(`${envBase}/api`);
+  urls.push(sameOrigin);
+  urls.push("/api");
+  urls.push("http://localhost:8080/api");
 
   let lastError = "";
 
-  for (const url of urls) {
+  for (const baseUrl of urls) {
     try {
       const controller = new AbortController();
       const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
+      const url = `${baseUrl.replace(/\/$/, "")}/chat`;
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -40,6 +53,7 @@ async function fetchChatReply(message: string, history: ChatMessage[]) {
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         lastError = body?.error || `${res.status} ${res.statusText}`;
+        console.warn("Assistant request failed at", url, "->", lastError);
         continue;
       }
 
@@ -48,13 +62,16 @@ async function fetchChatReply(message: string, history: ChatMessage[]) {
     } catch (error) {
       lastError =
         error instanceof Error && error.name === "AbortError"
-          ? `Request timed out (${REQUEST_TIMEOUT_MS / 1000}s) for ${url}`
+          ? `Request timed out (${REQUEST_TIMEOUT_MS / 1000}s)`
           : error instanceof Error
-            ? error.message
-            : "Network error";
+          ? error.message
+          : "Network error";
+      console.warn("Assistant request error for", baseUrl, lastError);
     }
   }
 
+  // notify user with a toast for quick debugging
+  toast({ title: "Assistant unavailable", description: lastError || "Unable to reach chat backend" });
   throw new Error(lastError || "Unable to reach chat backend");
 }
 

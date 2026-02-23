@@ -271,6 +271,7 @@ export default function ProbabilityFlowMap({ molecules, size = 128, onTopIndices
   const [iterations, setIterations] = useState(8);
   const [damping, setDamping] = useState(0.96);
   const [temperature, setTemperature] = useState(0.5);
+  const [adjacencySource, setAdjacencySource] = useState<"client" | "server">("client");
 
   // Build adjacency and initial probability textures for adjacency-aware diffusion
   const { prevTex, neighborTex, N, K } = useMemo(() => {
@@ -381,11 +382,13 @@ export default function ProbabilityFlowMap({ molecules, size = 128, onTopIndices
         tex.needsUpdate = true;
         if (!cancelled) {
           neighborTexRef.current = tex;
+          setAdjacencySource("server");
         }
       } catch (e) {
         // ignore and continue using client-side k-NN
         // eslint-disable-next-line no-console
         console.warn("Adjacency fetch failed, using client k-NN", e);
+        setAdjacencySource("client");
       }
     }
     fetchAdjacency();
@@ -396,7 +399,7 @@ export default function ProbabilityFlowMap({ molecules, size = 128, onTopIndices
 
   return (
     <div>
-      <div className="glass-card p-3 mb-3">
+      <div className="glass-card p-3 mb-3 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="flex-1">
             <label className="text-xs text-muted-foreground">Iterations: {iterations}</label>
@@ -411,10 +414,11 @@ export default function ProbabilityFlowMap({ molecules, size = 128, onTopIndices
             <input className="w-full" type="range" min={0} max={2} step={0.01} value={temperature} onChange={(e) => setTemperature(Number(e.target.value))} />
           </div>
         </div>
+        <div className="text-xs text-muted-foreground">Adjacency: <span className="font-medium">{adjacencySource}</span></div>
       </div>
 
-      <div className="h-64 rounded overflow-hidden">
-        <Canvas gl={{ antialias: false }} orthographic camera={{ position: [0, 0, 1] }}>
+      <div className="h-64 rounded overflow-hidden bg-gradient-to-tr from-slate-50 to-slate-100">
+        <Canvas gl={{ antialias: false, alpha: false }} orthographic camera={{ position: [0, 0, 1] }} style={{ background: "transparent" }}>
           <GPGPUAdj prevTex={prevTex} neighborTex={neighborTex} iterations={iterations} damping={damping} temperature={temperature} N={N} K={K} onTop={onTopIndices} />
         </Canvas>
       </div>
