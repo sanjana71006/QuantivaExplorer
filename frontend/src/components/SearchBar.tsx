@@ -15,7 +15,6 @@ interface SearchBarProps {
 
 export default function SearchBar({ onResults }: SearchBarProps) {
   const [query, setQuery] = useState("");
-  const [mode, setMode] = useState<"name" | "disease">("name");
   const [loading, setLoading] = useState(false);
 
   async function doSearch(e?: React.FormEvent) {
@@ -25,7 +24,7 @@ export default function SearchBar({ onResults }: SearchBarProps) {
     setLoading(true);
     try {
       const apiBase = getApiBaseUrl();
-      const url = mode === "name" ? `${apiBase}/api/molecule/${encodeURIComponent(q)}` : `${apiBase}/api/disease-search?query=${encodeURIComponent(q)}`;
+      const url = `${apiBase}/api/molecule/${encodeURIComponent(q)}`;
       const resp = await fetch(url);
       if (!resp.ok) throw new Error(`Search failed: ${resp.status}`);
       const json = await resp.json();
@@ -42,13 +41,8 @@ export default function SearchBar({ onResults }: SearchBarProps) {
 
   return (
     <form onSubmit={doSearch} className="flex items-center gap-3 w-full">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">Search by</div>
-      <div className="flex items-center gap-2">
-        <label aria-pressed={mode === 'name'} className={`btn btn-xs ${mode === 'name' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setMode('name')}>Name</label>
-        <label aria-pressed={mode === 'disease'} className={`btn btn-xs ${mode === 'disease' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setMode('disease')}>Disease</label>
-      </div>
       <input
-        placeholder={mode === "name" ? "Search molecule name (e.g. aspirin)" : "Search disease keyword (e.g. cancer)"}
+        placeholder="Search molecule name (e.g. aspirin)"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         className="input input-sm flex-1"
