@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { getDataset } from "@/lib/moleculeDataset";
 import { scoreMolecules, getTopCandidates, defaultWeights, type ScoredMolecule } from "@/lib/quantumEngine";
 import { explainMolecule, generateOutbreakReport } from "@/lib/aiExplainer";
+import MoleculeSketch from "@/components/MoleculeSketch";
 
 const getProbBadgeClass = (p: number, total: number) => {
   const normalized = p * total;
@@ -92,7 +93,6 @@ const Results = () => {
               <SelectItem value="All">All Sources</SelectItem>
               <SelectItem value="PubChem">PubChem</SelectItem>
               <SelectItem value="Delaney">Delaney</SelectItem>
-              <SelectItem value="Quantum">Quantum</SelectItem>
             </SelectContent>
           </Select>
           {diseaseFilter !== "All" && (
@@ -142,12 +142,19 @@ const Results = () => {
                 <span className="font-display font-bold text-primary-foreground text-sm">#{c.rank}</span>
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-display font-semibold text-foreground">{c.name}</span>
-                  <span className="text-xs font-mono text-muted-foreground">{c.molecule_id}</span>
-                  <Badge variant="outline" className="border-primary/20 text-xs">{c.disease_target}</Badge>
+                <div className="flex items-center gap-3 mb-1">
+                  <div className="w-14 h-10">
+                    <MoleculeSketch smiles={c.smiles} size={48} />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-display font-semibold text-foreground">{c.name}</span>
+                      <span className="text-xs font-mono text-muted-foreground">{c.molecule_id}</span>
+                      <Badge variant="outline" className="border-primary/20 text-xs">{c.disease_target}</Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">{c.formula} • MW: {c.molecular_weight}</p>
+                  </div>
                 </div>
-                <p className="text-sm text-muted-foreground">{c.formula} • MW: {c.molecular_weight}</p>
               </div>
               <div className="hidden sm:flex items-center gap-3">
                 <Badge variant="outline" className={getProbBadgeClass(c.probability, scored.length)}>

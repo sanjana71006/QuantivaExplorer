@@ -1,8 +1,10 @@
-import { useRef, useState, useMemo, useCallback } from "react";
+import { useRef, useState, useMemo, useCallback, useEffect } from "react";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import { Canvas, useFrame, ThreeEvent } from "@react-three/fiber";
 import { OrbitControls, Html } from "@react-three/drei";
 import * as THREE from "three";
 import type { ScoredMolecule } from "@/lib/quantumEngine";
+import MoleculeSketch from "@/components/MoleculeSketch";
 
 interface MoleculePointProps {
   molecule: ScoredMolecule;
@@ -57,15 +59,17 @@ function Scene({
   molecules,
   onSelect,
   selectedId,
+  attractorIds,
 }: {
   molecules: ScoredMolecule[];
   onSelect: (mol: ScoredMolecule) => void;
   selectedId: string | null;
+  attractorIds?: string[];
 }) {
-  const [hovered, setHovered] = useState<ScoredMolecule | null>(null);
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
   // Limit rendered molecules for performance
-  const displayed = useMemo(() => molecules.slice(0, 500), [molecules]);
+  const displayed = useMemo(() => molecules.slice(0, 2000), [molecules]);
 
   // Normalize positions
   const { points, colors, sizes } = useMemo(() => {
@@ -88,39 +92,107 @@ function Scene({
       ] as [number, number, number]),
       colors: displayed.map((m) => {
         // Color by probability: cyan (high) → purple (mid) → dim (low)
-        const t = Math.min(m.probability * displayed.length * 2, 1);
-        return new THREE.Color().setHSL(0.52 - t * 0.25, 0.8, 0.3 + t * 0.4);
+        const t = Math.max(0, Math.min(1, m.probability));
+        return new THREE.Color().setHSL(0.65 - t * 0.3, 0.85, 0.35 + t * 0.35);
       }),
-      sizes: displayed.map((m) => 0.05 + m.drug_likeness_score * 0.15),
+      sizes: displayed.map((m) => 0.03 + Math.max(0, Math.min(1, m.drug_likeness_score)) * 0.12),
     };
   }, [displayed]);
 
+  function InstancedPoints() {
+    const meshRef = useRef<THREE.InstancedMesh | null>(null);
+    const glowRef = useRef<THREE.InstancedMesh | null>(null);
+    const tempMat = useMemo(() => new THREE.Object3D(), []);
+    const tempVec = useMemo(() => new THREE.Vector3(), []);
+
+    // Prepare instance color buffer
+    const colorArray = useMemo(() => {
+      const arr = new Float32Array(displayed.length * 3);
+      for (let i = 0; i < displayed.length; i++) {
+        const c = colors[i];
+        arr[i * 3 + 0] = c.r;
+        arr[i * 3 + 1] = c.g;
+        arr[i * 3 + 2] = c.b;
+      }
+      return arr;
+    }, [colors, displayed.length]);
+
+    useFrame((state, delta) => {
+      if (!meshRef.current) return;
+
+      for (let i = 0; i < displayed.length; i++) {
+        const p = points[i];
+        tempMat.position.set(p[0], p[1], p[2]);
+        const baseScale = sizes[i];
+        // Pulse selected item or attractors
+        const isAttractor = Array.isArray(attractorIds) && attractorIds.includes(displayed[i].molecule_id);
+        const scaleFactor = hoveredIndex === i || selectedId === displayed[i].molecule_id ? 1.6 : (isAttractor ? 1.4 : 1.0);
+        // attractor pull toward origin
+        if (isAttractor) {
+          tempVec.set(-p[0] * 0.12, -p[1] * 0.12, -p[2] * 0.12);
+          tempMat.position.add(tempVec);
+        }
+        const s = baseScale * scaleFactor * (1 + Math.sin((i + state.clock.elapsedTime) * 2.0) * 0.05);
+        tempMat.scale.setScalar(s);
+        tempMat.updateMatrix();
+        meshRef.current.setMatrixAt(i, tempMat.matrix);
+      }
+      meshRef.current.instanceMatrix.needsUpdate = true;
+    });
+
+    // Attach instance color attribute
+    useEffect(() => {
+      if (!meshRef.current) return;
+      const geo = meshRef.current.geometry as THREE.BufferGeometry;
+      geo.setAttribute("instanceColor", new THREE.InstancedBufferAttribute(colorArray, 3));
+    }, [colorArray]);
+
+    return (
+      <>
+        <instancedMesh ref={meshRef} args={[undefined, undefined, displayed.length]} castShadow receiveShadow frustumCulled={false} onPointerMove={(e: any) => {
+          const id = e.instanceId as number | undefined;
+          if (typeof id === 'number') setHoveredIndex(id);
+        }} onPointerOut={() => setHoveredIndex(null)} onClick={(e: any) => {
+          const id = e.instanceId as number | undefined;
+          if (typeof id === 'number') onSelect(displayed[id]);
+        }}>
+          <sphereGeometry args={[1, 12, 12]} />
+          <meshStandardMaterial vertexColors opacity={1} transparent={false} roughness={0.25} metalness={0.6} emissiveIntensity={0.6} />
+        </instancedMesh>
+
+        {/* Soft glow layer */}
+        <instancedMesh ref={glowRef} args={[undefined, undefined, displayed.length]} frustumCulled={false} raycast={() => null}>
+          <sphereGeometry args={[1.0, 12, 12]} />
+          <meshBasicMaterial toneMapped={false} transparent opacity={0.12} blending={THREE.AdditiveBlending} />
+        </instancedMesh>
+      </>
+    );
+  }
+
+  const hoveredMolecule = hoveredIndex !== null ? displayed[hoveredIndex] : null;
+
   return (
     <>
-      <ambientLight intensity={0.3} />
-      <pointLight position={[10, 10, 10]} intensity={0.8} color="#00e6e6" />
-      <pointLight position={[-10, -5, -10]} intensity={0.4} color="#7c3aed" />
+      <ambientLight intensity={0.35} />
+      <pointLight position={[10, 10, 10]} intensity={0.9} color="#00e6e6" />
+      <pointLight position={[-10, -5, -10]} intensity={0.45} color="#7c3aed" />
 
-      {displayed.map((mol, i) => (
-        <MoleculePoint
-          key={mol.molecule_id}
-          molecule={mol}
-          position={points[i]}
-          color={colors[i]}
-          size={sizes[i]}
-          onHover={setHovered}
-          onClick={onSelect}
-          isSelected={selectedId === mol.molecule_id}
-        />
-      ))}
+      <InstancedPoints />
 
-      {hovered && (
-        <Html position={points[displayed.indexOf(hovered)]}>
-          <div className="glass-card p-3 text-xs min-w-[180px] pointer-events-none -translate-x-1/2 -translate-y-full mb-2">
-            <p className="font-semibold text-foreground">{hovered.name}</p>
-            <p className="text-muted-foreground">{hovered.molecule_id} • {hovered.disease_target}</p>
-            <p className="text-primary">Score: {hovered.weighted_score.toFixed(3)}</p>
-            <p className="text-muted-foreground">DL: {hovered.drug_likeness_score.toFixed(3)}</p>
+      {hoveredMolecule && (
+        <Html position={points[hoveredIndex || 0]}>
+          <div className="glass-card p-3 text-xs min-w-[220px] pointer-events-none -translate-x-1/2 -translate-y-full mb-2">
+            <div className="flex items-start gap-3">
+              <div className="w-20 h-16">
+                <MoleculeSketch smiles={hoveredMolecule.smiles} size={64} />
+              </div>
+              <div>
+                <p className="font-semibold text-foreground">{hoveredMolecule.name}</p>
+                <p className="text-muted-foreground">{hoveredMolecule.molecule_id} • {hoveredMolecule.disease_target}</p>
+                <p className="text-primary">Score: {hoveredMolecule.weighted_score.toFixed(3)}</p>
+                <p className="text-muted-foreground">DL: {hoveredMolecule.drug_likeness_score.toFixed(3)}</p>
+              </div>
+            </div>
           </div>
         </Html>
       )}
@@ -137,22 +209,33 @@ interface ChemicalUniverse3DProps {
   molecules: ScoredMolecule[];
   onSelectMolecule: (mol: ScoredMolecule) => void;
   selectedMoleculeId: string | null;
+  attractorIds?: string[];
+  outbreak?: boolean;
 }
 
-export default function ChemicalUniverse3D({ molecules, onSelectMolecule, selectedMoleculeId }: ChemicalUniverse3DProps) {
+export default function ChemicalUniverse3D({ molecules, onSelectMolecule, selectedMoleculeId, attractorIds, outbreak = false }: ChemicalUniverse3DProps) {
   return (
-    <div className="w-full h-full min-h-[400px] rounded-xl overflow-hidden border border-glass-border bg-background/50">
-      <Canvas
-        camera={{ position: [8, 6, 8], fov: 50, near: 0.1, far: 100 }}
-        gl={{ antialias: true, alpha: true }}
-        style={{ background: "transparent" }}
-      >
-        <Scene
-          molecules={molecules}
-          onSelect={onSelectMolecule}
-          selectedId={selectedMoleculeId}
-        />
-      </Canvas>
+    <div className="w-full h-full min-h-[400px] rounded-xl overflow-hidden border border-glass-border bg-background/50 relative">
+      <ErrorBoundary>
+        <Canvas
+          camera={{ position: [8, 6, 8], fov: 50, near: 0.1, far: 100 }}
+          gl={{ antialias: true, alpha: true }}
+          style={{ background: "transparent" }}
+        >
+          <Scene
+            molecules={molecules}
+            onSelect={onSelectMolecule}
+            selectedId={selectedMoleculeId}
+            attractorIds={attractorIds}
+          />
+        </Canvas>
+      </ErrorBoundary>
+      {/* Outbreak banner overlay */}
+      {outbreak && (
+        <div className="absolute left-4 top-4 bg-yellow-900/80 text-white px-3 py-1 rounded shadow">
+          Exploring candidates under outbreak constraints
+        </div>
+      )}
     </div>
   );
 }
