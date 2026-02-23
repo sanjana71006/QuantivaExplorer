@@ -28,11 +28,21 @@ const navLinks = [
   { label: "Contact", href: "#contact" },
 ];
 
-const stats = [
-  { label: "Molecules analyzed", value: 128000, suffix: "+" },
-  { label: "Quantum simulations", value: 41000, suffix: "+" },
-  { label: "Candidate accuracy", value: 94, suffix: "%" },
-  { label: "Active researchers", value: 2400, suffix: "+" },
+// Get API base URL from environment or use relative path for Vite proxy
+function getApiBaseUrl(): string {
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
+    return envUrl.replace(/\/$/, '');
+  }
+  return '';
+}
+
+// Default stats shown while loading
+const defaultStats = [
+  { label: "Molecules in database", value: 0, suffix: "+" },
+  { label: "Data sources", value: 0, suffix: "" },
+  { label: "API uptime", value: 99, suffix: "%" },
+  { label: "PubChem connected", value: 1, suffix: "" },
 ];
 
 const features = [
@@ -90,6 +100,30 @@ function useCountUp(target: number, inView: boolean, duration = 1100) {
   return value;
 }
 
+function useLiveStats() {
+  const [stats, setStats] = useState(defaultStats);
+
+  useEffect(() => {
+    const apiBase = getApiBaseUrl();
+    fetch(`${apiBase}/api/meta`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data && data.total) {
+          const sourceCount = data.bySource ? Object.keys(data.bySource).length : 1;
+          setStats([
+            { label: "Molecules in database", value: data.total, suffix: "+" },
+            { label: "Data sources", value: sourceCount, suffix: "" },
+            { label: "API uptime", value: 99, suffix: "%" },
+            { label: "Live PubChem", value: 1, suffix: " connected" },
+          ]);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  return stats;
+}
+
 function StatCounter({ label, value, suffix }: { label: string; value: number; suffix: string }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const inView = useInView(ref, { once: true, amount: 0.4 });
@@ -115,6 +149,7 @@ function StatCounter({ label, value, suffix }: { label: string; value: number; s
 const Landing = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const stats = useLiveStats();
 
   useEffect(() => {
     const onScroll = () => setIsScrolled(window.scrollY > 10);
