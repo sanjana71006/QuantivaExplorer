@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "./context/ThemeContext";
 import Landing from "./pages/Landing";
+import ExplorationLab from "./pages/ExplorationLab";
 import DashboardLayout from "./components/DashboardLayout";
 import DatasetSelection from "./pages/DatasetSelection";
 import SimulationControls from "./pages/SimulationControls";
@@ -25,6 +26,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Landing />} />
+            <Route path="/exploration-lab" element={<ExplorationLab />} />
             <Route path="/dashboard" element={<DashboardLayout />}>
               <Route index element={<DatasetSelection />} />
               <Route path="simulation" element={<SimulationControls />} />

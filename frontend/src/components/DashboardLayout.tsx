@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation, Outlet } from "react-router-dom";
-import { Atom, Database, SlidersHorizontal, LineChart, Trophy, Settings, Menu, X, User, ChevronLeft, Home } from "lucide-react";
+import { Atom, Database, SlidersHorizontal, LineChart, Trophy, Settings, Menu, X, User, ChevronLeft, Home, FlaskConical } from "lucide-react";
 import quantivaLogo from "@/assets/Quantum Explorer Logo.png";
 import { Button } from "@/components/ui/button";
 import ThemeSelector from "@/components/ThemeSelector";
@@ -11,6 +11,7 @@ const navItems = [
   { title: "Simulation Controls", path: "/dashboard/simulation", icon: SlidersHorizontal },
   { title: "Visualization", path: "/dashboard/visualization", icon: LineChart },
   { title: "Ranking Results", path: "/dashboard/results", icon: Trophy },
+  { title: "🧪 Exploration Lab", path: "/exploration-lab", icon: FlaskConical },
   { title: "Settings", path: "/dashboard/settings", icon: Settings },
 ];
 

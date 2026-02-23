@@ -15,6 +15,9 @@ const LandingNav = () => {
         <div className="hidden md:flex items-center gap-8">
           <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Features</a>
           <a href="#use-cases" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Use Cases</a>
+          <Link to="/exploration-lab" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+            🧪 Exploration Lab
+          </Link>
           <Link to="/dashboard">
             <Button size="sm" className="btn-glow gradient-primary text-primary-foreground font-semibold">
               Launch App
