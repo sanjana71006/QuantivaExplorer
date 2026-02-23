@@ -6,7 +6,6 @@ import ThemeSelector from "@/components/ThemeSelector";
 import {
   Atom,
   ArrowRight,
-  PlayCircle,
   Microscope,
   Brain,
   ShieldCheck,
@@ -247,13 +246,6 @@ const Landing = () => {
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </Link>
-                <Button
-                  variant="outline"
-                  className="h-12 rounded-xl border-border bg-card/80 px-6 text-foreground hover:bg-card"
-                >
-                  <PlayCircle className="mr-2 h-4 w-4 text-primary" />
-                  Watch Demo
-                </Button>
               </div>
             </motion.div>
 
