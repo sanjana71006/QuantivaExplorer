@@ -262,7 +262,7 @@ const Visualization = () => {
           <div className="flex items-start gap-4">
             <div className="w-36 h-36 bg-white rounded shadow flex items-center justify-center">
               {/* 2D image from PubChem if available */}
-              <img src={searchResults[0].image_url || `/api/compound-image?cid=${searchResults[0].id}`} alt={searchResults[0].name || 'molecule'} className="max-w-full max-h-full" />
+              <img src={searchResults[0].image_url || `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${searchResults[0].id}/PNG`} alt={searchResults[0].name || 'molecule'} className="max-w-full max-h-full" />
             </div>
             <div className="flex-1">
               <div className="flex items-center justify-between">

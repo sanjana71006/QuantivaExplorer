@@ -1,5 +1,14 @@
 import React, { useState } from "react";
 
+// Get API base URL from environment or use relative path for Vite proxy
+function getApiBaseUrl(): string {
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
+    return envUrl.replace(/\/$/, '');
+  }
+  return '';
+}
+
 interface SearchBarProps {
   onResults: (items: any[], source: string) => void;
 }
@@ -15,7 +24,8 @@ export default function SearchBar({ onResults }: SearchBarProps) {
     if (!q) return;
     setLoading(true);
     try {
-      const url = mode === "name" ? `/api/molecule/${encodeURIComponent(q)}` : `/api/disease-search?query=${encodeURIComponent(q)}`;
+      const apiBase = getApiBaseUrl();
+      const url = mode === "name" ? `${apiBase}/api/molecule/${encodeURIComponent(q)}` : `${apiBase}/api/disease-search?query=${encodeURIComponent(q)}`;
       const resp = await fetch(url);
       if (!resp.ok) throw new Error(`Search failed: ${resp.status}`);
       const json = await resp.json();
