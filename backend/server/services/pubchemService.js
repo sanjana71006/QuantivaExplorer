@@ -21,7 +21,7 @@ function getCache(key) {
 }
 
 async function fetchWithTimeout(url, opts = {}) {
-  const instance = axios.create({ timeout: 3000 });
+  const instance = axios.create({ timeout: 15000 });  // Increased to 15 seconds
   const res = await instance.get(url, opts);
   return res;
 }

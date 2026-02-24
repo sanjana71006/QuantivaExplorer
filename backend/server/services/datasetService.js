@@ -1,9 +1,17 @@
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const ROOT = process.cwd();
 
+// Look in multiple locations: backend folder, project root, frontend public
 const CANDIDATE_PATHS = [
+  path.join(__dirname, "..", "..", "processed_dataset.json"),  // backend/processed_dataset.json
+  path.join(__dirname, "..", "..", "..", "frontend", "public", "processed_dataset.json"),  // frontend/public/
+  path.join(ROOT, "backend", "processed_dataset.json"),
+  path.join(ROOT, "frontend", "public", "processed_dataset.json"),
   path.join(ROOT, "public", "processed_dataset.json"),
   path.join(ROOT, "processed_dataset.json"),
 ];
