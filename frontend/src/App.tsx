@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "./context/ThemeContext";
 import { GlobalExplorationProvider } from "./context/GlobalExplorationContext";
 import Landing from "./pages/Landing";
@@ -25,7 +25,7 @@ const App = () => (
         <TooltipProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter>
+          <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <Routes>
               <Route path="/" element={<Landing />} />
               <Route path="/exploration-lab" element={<ExplorationLab />} />
@@ -36,6 +36,11 @@ const App = () => (
                 <Route path="results" element={<Results />} />
                 <Route path="settings" element={<DashboardSettings />} />
               </Route>
+              {/* Convenience redirects */}
+              <Route path="/visualization" element={<Navigate to="/dashboard/visualization" replace />} />
+              <Route path="/simulation" element={<Navigate to="/dashboard/simulation" replace />} />
+              <Route path="/results" element={<Navigate to="/dashboard/results" replace />} />
+              <Route path="/settings" element={<Navigate to="/dashboard/settings" replace />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

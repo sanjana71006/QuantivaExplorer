@@ -23,7 +23,7 @@ export default function ContributionHighlighter({ molecule, compact = false }: C
     {
       name: 'Binding Affinity',
       weight: weights.binding,
-      value: molecule.binding_affinity || 0.5,
+      value: molecule.score_breakdown?.binding || 0.5,
       icon: '🎯',
       color: 'from-blue-500 to-blue-600',
       description: 'Target affinity strength',
@@ -31,7 +31,7 @@ export default function ContributionHighlighter({ molecule, compact = false }: C
     {
       name: 'Toxicity',
       weight: weights.toxicity,
-      value: 1 - (molecule.toxicity_risk || 0.3), // Inverted: lower risk = higher contribution
+      value: molecule.score_breakdown?.toxicity || 0.7,
       icon: '☠️',
       color: 'from-red-500 to-red-600',
       description: 'Safety profile',
@@ -39,7 +39,7 @@ export default function ContributionHighlighter({ molecule, compact = false }: C
     {
       name: 'Solubility',
       weight: weights.solubility,
-      value: molecule.solubility || 0.5,
+      value: molecule.score_breakdown?.solubility || 0.5,
       icon: '💧',
       color: 'from-cyan-500 to-cyan-600',
       description: 'Bioavailability',
@@ -47,7 +47,7 @@ export default function ContributionHighlighter({ molecule, compact = false }: C
     {
       name: 'Lipinski',
       weight: weights.lipinski,
-      value: molecule.lipinski_compliant ? 1 : 0.3,
+      value: molecule.score_breakdown?.lipinski || (molecule.lipinski_compliant ? 1 : 0.3),
       icon: '✅',
       color: 'from-amber-500 to-amber-600',
       description: 'Drug-likeness rules',
@@ -55,7 +55,7 @@ export default function ContributionHighlighter({ molecule, compact = false }: C
     {
       name: 'Molecular Weight',
       weight: weights.mw,
-      value: Math.max(0, 1 - Math.abs(molecule.molecular_weight - 300) / 200),
+      value: molecule.score_breakdown?.mw || Math.max(0, 1 - Math.abs(molecule.molecular_weight - 300) / 200),
       icon: '⚖️',
       color: 'from-violet-500 to-violet-600',
       description: 'Weight compliance',
@@ -63,7 +63,7 @@ export default function ContributionHighlighter({ molecule, compact = false }: C
     {
       name: 'LogP (Hydrophobicity)',
       weight: weights.logp,
-      value: Math.max(0, 1 - Math.abs(molecule.logP - 2) / 3),
+      value: molecule.score_breakdown?.logP || Math.max(0, 1 - Math.abs(molecule.logP - 2) / 3),
       icon: '🌊',
       color: 'from-emerald-500 to-emerald-600',
       description: 'Lipophilicity balance',
