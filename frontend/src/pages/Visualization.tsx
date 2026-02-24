@@ -16,6 +16,11 @@ import DataSourceBadge from "@/components/DataSourceBadge";
 import VisualizationMetricsDashboard from "@/components/VisualizationMetricsDashboard";
 import ProbabilityEvolutionReplay from "@/components/ProbabilityEvolutionReplay";
 import DiversityWarningBanner from "@/components/DiversityWarningBanner";
+import EducationModeToggle from "@/components/education/EducationModeToggle";
+import SimulationStepExplainer from "@/components/education/SimulationStepExplainer";
+import EducationModeLayer from "@/components/education/EducationModeLayer";
+import GuidedWalkthrough from "@/components/education/GuidedWalkthrough";
+import ContributionHighlighter from "@/components/education/ContributionHighlighter";
 import { useGlobalExploration } from "@/context/GlobalExplorationContext";
 const ChemicalUniverse3D = lazy(() => import("@/components/ChemicalUniverse3D"));
 import type { ScoredMolecule } from "@/lib/quantumEngine";
@@ -56,6 +61,7 @@ const Visualization = () => {
     probabilityHistory,
     weights,
     isLoadingDataset,
+    educationMode,
   } = useGlobalExploration();
 
   // Local visualization-specific state
@@ -359,6 +365,8 @@ const Visualization = () => {
             <span className="text-sm text-muted-foreground">Outbreak Mode</span>
             <Switch checked={outbreakMode} onCheckedChange={(v) => setOutbreakMode(Boolean(v))} />
           </div>
+          <div className="border-l border-border mx-2 h-6" />
+          <EducationModeToggle />
         </div>
       </div>
 
@@ -540,8 +548,20 @@ const Visualization = () => {
           </div>
 
           <p className="text-sm text-foreground font-medium">{explanation.verdict}</p>
+
+          {/* Education Mode: Show contribution breakdown */}
+          {educationMode.enabled && (
+            <div className="mt-6 pt-6 border-t border-border">
+              <ContributionHighlighter molecule={selectedMolecule} />
+            </div>
+          )}
         </motion.div>
       )}
+
+      {/* Education Mode Components */}
+      <SimulationStepExplainer />
+      <EducationModeLayer />
+      <GuidedWalkthrough />
     </div>
   );
 };

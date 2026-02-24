@@ -52,6 +52,16 @@ export interface DiversityMetrics {
   chemicalSpaceCoverage: number;
 }
 
+export interface EducationModeState {
+  enabled: boolean;
+  showStepExplainer: boolean;
+  currentStep: number;
+  stepType: 'scoring' | 'diffusion' | 'contribution' | null;
+  animationSpeed: 'slow' | 'normal' | 'fast';
+  guidanceLevel: 'detailed' | 'moderate' | 'minimal';
+  highlightedFactors: string[];
+}
+
 export interface GlobalExplorationState {
   // Dataset
   datasetMode: DatasetMode;
@@ -75,6 +85,9 @@ export interface GlobalExplorationState {
   // Disease-aware mode
   diseaseProfile: DiseaseProfile;
 
+  // Education mode
+  educationMode: EducationModeState;
+
   // Simulation metadata
   simulationMetadata: SimulationMetadata | null;
   simulationHistory: SimulationMetadata[];
@@ -93,6 +106,7 @@ export interface GlobalExplorationState {
   removeFromCompare: (id: string) => void;
   clearCompare: () => void;
   setDiseaseProfile: (profile: Partial<DiseaseProfile>) => void;
+  setEducationMode: (state: Partial<EducationModeState>) => void;
   runSimulation: () => void;
   restoreSimulation: (id: string) => void;
   refreshDataset: () => Promise<void>;
@@ -121,6 +135,16 @@ const defaultDiseaseProfile: DiseaseProfile = {
   keyword: '',
   category: 'general',
   weightAdjustments: {},
+};
+
+const defaultEducationMode: EducationModeState = {
+  enabled: false,
+  showStepExplainer: false,
+  currentStep: 0,
+  stepType: null,
+  animationSpeed: 'normal',
+  guidanceLevel: 'moderate',
+  highlightedFactors: [],
 };
 
 // ============ DISEASE WEIGHT PROFILES ============
@@ -239,6 +263,9 @@ export function GlobalExplorationProvider({ children }: ProviderProps) {
 
   // Disease-aware state
   const [diseaseProfile, setDiseaseProfileState] = useState<DiseaseProfile>(defaultDiseaseProfile);
+
+  // Education mode state
+  const [educationMode, setEducationModeState] = useState<EducationModeState>(defaultEducationMode);
 
   // Simulation history
   const [simulationHistory, setSimulationHistory] = useState<SimulationMetadata[]>([]);
@@ -481,6 +508,10 @@ export function GlobalExplorationProvider({ children }: ProviderProps) {
     });
   }, []);
 
+  const setEducationMode = useCallback((state: Partial<EducationModeState>) => {
+    setEducationModeState(prev => ({ ...prev, ...state }));
+  }, []);
+
   const runSimulation = useCallback(() => {
     if (!simulationMetadata) return;
     
@@ -539,6 +570,7 @@ export function GlobalExplorationProvider({ children }: ProviderProps) {
     selectedMolecule,
     compareMolecules,
     diseaseProfile,
+    educationMode,
     simulationMetadata,
     simulationHistory,
     diversityMetrics,
@@ -552,6 +584,7 @@ export function GlobalExplorationProvider({ children }: ProviderProps) {
     removeFromCompare,
     clearCompare,
     setDiseaseProfile,
+    setEducationMode,
     runSimulation,
     restoreSimulation,
     refreshDataset,
