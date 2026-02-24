@@ -183,7 +183,7 @@ const Landing = () => {
         <div className="mx-auto flex h-20 w-full max-w-7xl items-center justify-between px-6">
           <a href="#home" className="flex items-center gap-3">
             <img src={quantivaLogo} alt="Quantiva Explorer" className="h-10 w-10 rounded-full" />
-            <span className="text-lg font-semibold tracking-wide">Quantiva QuantumRx</span>
+            <span className="text-lg font-semibold tracking-wide">Quantiva Explorer</span>
           </a>
 
           <nav className="hidden items-center gap-8 lg:flex">
@@ -200,7 +200,7 @@ const Landing = () => {
 
           <div className="flex items-center gap-3">
             <ThemeSelector />
-            <Link to="/dashboard" className="hidden sm:block">
+            <Link to="/molecular-portal" className="hidden sm:block">
               <Button className="h-10 rounded-xl bg-primary px-5 text-primary-foreground shadow-lg transition btn-glow">
                 Launch Explorer
               </Button>
@@ -228,7 +228,7 @@ const Landing = () => {
                   {item.label}
                 </a>
               ))}
-              <Link to="/dashboard" onClick={() => setMobileOpen(false)}>
+              <Link to="/molecular-portal" onClick={() => setMobileOpen(false)}>
                 <Button className="h-10 w-full rounded-xl bg-primary text-primary-foreground font-semibold btn-glow">Launch Explorer</Button>
               </Link>
             </div>
@@ -271,7 +271,7 @@ const Landing = () => {
                 and explainable AI insights built for healthcare research teams and learning environments.
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-4">
-                <Link to="/dashboard">
+                <Link to="/molecular-portal">
                   <Button className="h-12 rounded-xl bg-primary px-6 text-primary-foreground shadow-lg btn-glow">
                     Start Exploration
                     <ArrowRight className="ml-2 h-4 w-4" />
@@ -468,7 +468,7 @@ const Landing = () => {
           <div>
             <div className="flex items-center gap-2">
               <img src={quantivaLogo} alt="Quantiva Explorer" className="h-6 w-6 rounded-full" />
-              <span className="font-semibold">Quantiva QuantumRx</span>
+              <span className="font-semibold">Quantiva Explorer</span>
             </div>
             <p className="mt-3 text-sm text-muted-foreground">
               Quantum-inspired drug discovery platform for educational and research acceleration.
@@ -500,7 +500,7 @@ const Landing = () => {
           </div>
         </div>
         <div className="mx-auto mt-8 w-full max-w-7xl border-t border-border pt-4 text-xs text-muted-foreground">
-          © {new Date().getFullYear()} Quantiva QuantumRx. All rights reserved.
+          © {new Date().getFullYear()} Quantiva Explorer. All rights reserved.
         </div>
       </footer>
     </div>

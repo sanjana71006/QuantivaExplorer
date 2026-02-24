@@ -5,9 +5,63 @@
 @tailwind utilities;
 
 @layer base {
-  /* Dark Theme - Pink (default) */
-  :root,
-  [data-theme="dark"][data-palette="pink"] {
+  /* Light Theme (Default) - Pink */
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 15%;
+
+    --card: 0 0% 96%;
+    --card-foreground: 240 10% 15%;
+
+    --popover: 0 0% 96%;
+    --popover-foreground: 240 10% 15%;
+
+    --primary: 333 100% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 334 100% 52%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 240 6% 75%;
+    --muted-foreground: 240 8% 40%;
+
+    --accent: 258 90% 55%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 240 6% 90%;
+    --input: 240 6% 90%;
+    --ring: 333 100% 55%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 10% 30%;
+    --sidebar-primary: 333 100% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 6% 90%;
+    --sidebar-accent-foreground: 240 10% 15%;
+    --sidebar-border: 240 6% 90%;
+    --sidebar-ring: 333 100% 55%;
+
+    --glass: 0 0% 98%;
+    --glass-border: 240 6% 85%;
+    --glow-primary: 333 100% 55%;
+    --glow-secondary: 258 90% 55%;
+    --surface: 0 0% 100%;
+    --surface-hover: 240 6% 96%;
+    --gradient-start: 333 100% 55%;
+    --gradient-end: 258 90% 55%;
+    --success: 160 84% 35%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 45%;
+    --warning-foreground: 0 0% 100%;
+  }
+
+  /* Dark Theme - Pink */
+  .dark {
     --background: 240 24% 6%;
     --foreground: 220 14% 91%;
 

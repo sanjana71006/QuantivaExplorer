@@ -8,6 +8,7 @@ import { ThemeProvider } from "./context/ThemeContext";
 import { GlobalExplorationProvider } from "./context/GlobalExplorationContext";
 import { useSettings } from "./hooks/useSettings";
 import Landing from "./pages/Landing";
+import MolecularPortal from "./pages/MolecularPortal";
 import ExplorationLab from "./pages/ExplorationLab";
 import DashboardLayout from "./components/DashboardLayout";
 import DatasetSelection from "./pages/DatasetSelection";
@@ -51,10 +52,14 @@ function AppContent() {
         html.style.removeProperty('--disable-animations');
       }
 
-      // Log in dev mode
-      if (settings.advanced.verboseLogging) {
-        console.log('Settings loaded and applied:', settings);
-      }
+      // Apply font size via CSS variable for better cascade
+      const fontSizeValues = {
+        small: '14px',
+        medium: '16px',
+        large: '18px',
+        xlarge: '20px',
+      };
+      html.style.fontSize = fontSizeValues[settings.theme.fontSize];
     }
   }, [isLoaded, settings]);
 
@@ -62,6 +67,7 @@ function AppContent() {
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Routes>
         <Route path="/" element={<Landing />} />
+        <Route path="/molecular-portal" element={<MolecularPortal />} />
         <Route path="/exploration-lab" element={<ExplorationLab />} />
         <Route path="/dashboard" element={<DashboardLayout />}>
           <Route index element={<DatasetSelection />} />

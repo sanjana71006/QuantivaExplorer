@@ -2,101 +2,41 @@ import { useState, useEffect, useCallback } from 'react';
 
 export interface ApplicationSettings {
   general: {
-    autoRunSimulation: boolean;
     showAdvancedDescriptors: boolean;
     enableAnimations: boolean;
-    defaultAlgorithm: 'quantum' | 'classical' | 'hybrid';
-    exportFormat: 'csv' | 'json' | 'xlsx' | 'pdf';
   };
   education: {
     enableEducationByDefault: boolean;
     defaultGuidanceLevel: 'detailed' | 'moderate' | 'minimal';
     defaultAnimationSpeed: 'slow' | 'normal' | 'fast';
-    showTutorialOnStartup: boolean;
   };
   visualization: {
     visualization3DQuality: number;
-    enableOutbreakModeDefault: boolean;
     defaultVisualMode: 'galaxy' | 'cluster' | 'network' | 'split';
-    heatmapSize: number;
-  };
-  api: {
-    apiEndpoint: string;
-    pubchemTimeout: number;
-    preferOfflineMode: boolean;
   };
   theme: {
     colorTheme: 'auto' | 'light' | 'dark';
     fontSize: 'small' | 'medium' | 'large' | 'xlarge';
   };
-  dataset: {
-    defaultDatasetSource: 'local' | 'pubchem' | 'hybrid';
-    lipinskiFilterDefault: boolean;
-    toxicityThreshold: number;
-  };
-  notifications: {
-    enableNotifications: boolean;
-    showWarnings: boolean;
-    soundAlerts: boolean;
-  };
-  performance: {
-    cacheResults: boolean;
-    analyticsTracking: boolean;
-    dataRetention: number;
-  };
-  advanced: {
-    developerMode: boolean;
-    verboseLogging: boolean;
-  };
 }
 
 const DEFAULT_SETTINGS: ApplicationSettings = {
   general: {
-    autoRunSimulation: false,
     showAdvancedDescriptors: true,
     enableAnimations: true,
-    defaultAlgorithm: 'quantum',
-    exportFormat: 'csv',
   },
   education: {
     enableEducationByDefault: false,
     defaultGuidanceLevel: 'moderate',
     defaultAnimationSpeed: 'normal',
-    showTutorialOnStartup: false,
   },
   visualization: {
     visualization3DQuality: 75,
-    enableOutbreakModeDefault: false,
     defaultVisualMode: 'galaxy',
-    heatmapSize: 50,
-  },
-  api: {
-    apiEndpoint: 'http://localhost:8080',
-    pubchemTimeout: 15,
-    preferOfflineMode: false,
   },
   theme: {
     colorTheme: 'auto',
     fontSize: 'medium',
-  },
-  dataset: {
-    defaultDatasetSource: 'hybrid',
-    lipinskiFilterDefault: false,
-    toxicityThreshold: 0.5,
-  },
-  notifications: {
-    enableNotifications: true,
-    showWarnings: true,
-    soundAlerts: false,
-  },
-  performance: {
-    cacheResults: true,
-    analyticsTracking: false,
-    dataRetention: 30,
-  },
-  advanced: {
-    developerMode: false,
-    verboseLogging: false,
   },
 };
 
@@ -137,9 +77,11 @@ export const useSettings = () => {
       // Apply font size immediately
       applyFontSize(newSettings.theme.fontSize);
       
-      // Log in dev mode
-      if (newSettings.advanced.verboseLogging) {
-        console.log('Settings saved:', newSettings);
+      // Apply animation preference
+      if (!newSettings.general.enableAnimations) {
+        document.documentElement.style.setProperty('--disable-animations', '1');
+      } else {
+        document.documentElement.style.removeProperty('--disable-animations');
       }
     } catch (error) {
       console.error('Failed to save settings:', error);
@@ -190,15 +132,13 @@ function applyTheme(theme: 'auto' | 'light' | 'dark') {
 // Apply font size to document
 function applyFontSize(size: 'small' | 'medium' | 'large' | 'xlarge') {
   const html = document.documentElement;
-  html.classList.remove('text-sm', 'text-base', 'text-lg', 'text-xl');
-
-  const sizeMap = {
-    small: 'text-sm',
-    medium: 'text-base',
-    large: 'text-lg',
-    xlarge: 'text-xl',
+  
+  const fontSizeValues = {
+    small: '14px',
+    medium: '16px',
+    large: '18px',
+    xlarge: '20px',
   };
 
-  html.classList.add(sizeMap[size]);
-  html.style.fontSize = sizeMap[size];
+  html.style.fontSize = fontSizeValues[size];
 }
