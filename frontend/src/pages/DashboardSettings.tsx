@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -9,77 +9,146 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { motion } from 'framer-motion';
 import { Settings, Zap, Palette, Database, HardDrive, Code, BookOpen, AlertCircle, Save } from 'lucide-react';
+import { useSettings, ApplicationSettings } from '@/hooks/useSettings';
 
 const DashboardSettings = () => {
-  // General Settings
-  const [autoRunSimulation, setAutoRunSimulation] = useState(false);
-  const [showAdvancedDescriptors, setShowAdvancedDescriptors] = useState(true);
-  const [enableAnimations, setEnableAnimations] = useState(true);
-  const [defaultAlgorithm, setDefaultAlgorithm] = useState('quantum');
-  const [exportFormat, setExportFormat] = useState('csv');
+  const { settings, isLoaded, saveSettings, resetSettings, updateSection } = useSettings();
+  const [saveMessage, setSaveMessage] = useState('');
 
-  // Education Mode Settings
-  const [enableEducationByDefault, setEnableEducationByDefault] = useState(false);
-  const [defaultGuidanceLevel, setDefaultGuidanceLevel] = useState('moderate');
-  const [defaultAnimationSpeed, setDefaultAnimationSpeed] = useState('normal');
-  const [showTutorialOnStartup, setShowTutorialOnStartup] = useState(false);
+  // Update local state from settings when loaded
+  const [localSettings, setLocalSettings] = useState<ApplicationSettings | null>(null);
 
-  // Visualization Settings
-  const [visualization3DQuality, setVisualization3DQuality] = useState(75);
-  const [enableOutbreakModeDefault, setEnableOutbreakModeDefault] = useState(false);
-  const [defaultVisualMode, setDefaultVisualMode] = useState('galaxy');
-  const [heatmapSize, setHeatmapSize] = useState(50);
-
-  // API & Backend Settings
-  const [apiEndpoint, setApiEndpoint] = useState('http://localhost:8080');
-  const [pubchemTimeout, setPubchemTimeout] = useState(15);
-  const [preferOfflineMode, setPreferOfflineMode] = useState(false);
-
-  // Theme & Appearance
-  const [colorTheme, setColorTheme] = useState('auto');
-  const [fontSize, setFontSize] = useState('medium');
-
-  // Dataset Preferences
-  const [defaultDatasetSource, setDefaultDatasetSource] = useState('hybrid');
-  const [lipinskiFilterDefault, setLipinskiFilterDefault] = useState(false);
-  const [toxicityThreshold, setToxicityThreshold] = useState(0.5);
-
-  // Notifications
-  const [enableNotifications, setEnableNotifications] = useState(true);
-  const [showWarnings, setShowWarnings] = useState(true);
-  const [soundAlerts, setSoundAlerts] = useState(false);
-
-  // Performance & Privacy
-  const [cacheResults, setCacheResults] = useState(true);
-  const [analyticsTracking, setAnalyticsTracking] = useState(false);
-  const [dataRetention, setDataRetention] = useState(30);
-
-  // Advanced
-  const [developerMode, setDeveloperMode] = useState(false);
-  const [verboseLogging, setVerboseLogging] = useState(false);
+  useEffect(() => {
+    if (isLoaded && settings) {
+      setLocalSettings(settings);
+    }
+  }, [isLoaded, settings]);
 
   const handleSaveSettings = () => {
-    const settings = {
-      general: { autoRunSimulation, showAdvancedDescriptors, enableAnimations, defaultAlgorithm, exportFormat },
-      education: { enableEducationByDefault, defaultGuidanceLevel, defaultAnimationSpeed, showTutorialOnStartup },
-      visualization: { visualization3DQuality, enableOutbreakModeDefault, defaultVisualMode, heatmapSize },
-      api: { apiEndpoint, pubchemTimeout, preferOfflineMode },
-      theme: { colorTheme, fontSize },
-      dataset: { defaultDatasetSource, lipinskiFilterDefault, toxicityThreshold },
-      notifications: { enableNotifications, showWarnings, soundAlerts },
-      performance: { cacheResults, analyticsTracking, dataRetention },
-      advanced: { developerMode, verboseLogging },
-    };
-    localStorage.setItem('quantiva-settings', JSON.stringify(settings));
-    alert('✅ Settings saved successfully!');
+    if (localSettings) {
+      saveSettings(localSettings);
+      setSaveMessage('✅ Settings saved successfully!');
+      setTimeout(() => setSaveMessage(''), 3000);
+    }
   };
 
   const handleResetSettings = () => {
     if (confirm('Are you sure you want to reset all settings to defaults?')) {
-      localStorage.removeItem('quantiva-settings');
-      window.location.reload();
+      resetSettings();
+      setSaveMessage('✅ Settings reset to defaults!');
+      setTimeout(() => setSaveMessage(''), 3000);
     }
   };
+
+  const handleUpdateGeneral = <K extends keyof ApplicationSettings['general']>(
+    key: K,
+    value: ApplicationSettings['general'][K]
+  ) => {
+    if (localSettings) {
+      const updated = { ...localSettings };
+      (updated.general[key] as any) = value;
+      setLocalSettings(updated);
+    }
+  };
+
+  const handleUpdateEducation = <K extends keyof ApplicationSettings['education']>(
+    key: K,
+    value: ApplicationSettings['education'][K]
+  ) => {
+    if (localSettings) {
+      const updated = { ...localSettings };
+      (updated.education[key] as any) = value;
+      setLocalSettings(updated);
+    }
+  };
+
+  const handleUpdateVisualization = <K extends keyof ApplicationSettings['visualization']>(
+    key: K,
+    value: ApplicationSettings['visualization'][K]
+  ) => {
+    if (localSettings) {
+      const updated = { ...localSettings };
+      (updated.visualization[key] as any) = value;
+      setLocalSettings(updated);
+    }
+  };
+
+  const handleUpdateAPI = <K extends keyof ApplicationSettings['api']>(
+    key: K,
+    value: ApplicationSettings['api'][K]
+  ) => {
+    if (localSettings) {
+      const updated = { ...localSettings };
+      (updated.api[key] as any) = value;
+      setLocalSettings(updated);
+    }
+  };
+
+  const handleUpdateTheme = <K extends keyof ApplicationSettings['theme']>(
+    key: K,
+    value: ApplicationSettings['theme'][K]
+  ) => {
+    if (localSettings) {
+      const updated = { ...localSettings };
+      (updated.theme[key] as any) = value;
+      setLocalSettings(updated);
+    }
+  };
+
+  const handleUpdateDataset = <K extends keyof ApplicationSettings['dataset']>(
+    key: K,
+    value: ApplicationSettings['dataset'][K]
+  ) => {
+    if (localSettings) {
+      const updated = { ...localSettings };
+      (updated.dataset[key] as any) = value;
+      setLocalSettings(updated);
+    }
+  };
+
+  const handleUpdateNotifications = <K extends keyof ApplicationSettings['notifications']>(
+    key: K,
+    value: ApplicationSettings['notifications'][K]
+  ) => {
+    if (localSettings) {
+      const updated = { ...localSettings };
+      (updated.notifications[key] as any) = value;
+      setLocalSettings(updated);
+    }
+  };
+
+  const handleUpdatePerformance = <K extends keyof ApplicationSettings['performance']>(
+    key: K,
+    value: ApplicationSettings['performance'][K]
+  ) => {
+    if (localSettings) {
+      const updated = { ...localSettings };
+      (updated.performance[key] as any) = value;
+      setLocalSettings(updated);
+    }
+  };
+
+  const handleUpdateAdvanced = <K extends keyof ApplicationSettings['advanced']>(
+    key: K,
+    value: ApplicationSettings['advanced'][K]
+  ) => {
+    if (localSettings) {
+      const updated = { ...localSettings };
+      (updated.advanced[key] as any) = value;
+      setLocalSettings(updated);
+    }
+  };
+
+  if (!isLoaded || !localSettings) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <Settings className="w-12 h-12 text-primary/50 mx-auto mb-2 animate-spin" />
+          <p className="text-muted-foreground">Loading settings...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <motion.div
@@ -94,6 +163,17 @@ const DashboardSettings = () => {
         </h2>
         <p className="text-muted-foreground text-sm">Configure application preferences and features.</p>
       </div>
+
+      {saveMessage && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          className="p-3 rounded-lg bg-green-500/10 border border-green-500/30 text-green-700 text-sm font-medium"
+        >
+          {saveMessage}
+        </motion.div>
+      )}
 
       <Tabs defaultValue="general" className="w-full">
         <TabsList className="grid w-full grid-cols-5 lg:grid-cols-9">
@@ -119,26 +199,26 @@ const DashboardSettings = () => {
               <SettingToggle
                 label="Auto-run simulation on dataset change"
                 description="Automatically run scoring when dataset is updated"
-                checked={autoRunSimulation}
-                onChange={setAutoRunSimulation}
+                checked={localSettings.general.autoRunSimulation}
+                onChange={(v) => handleUpdateGeneral('autoRunSimulation', v)}
               />
               <SettingToggle
                 label="Show advanced descriptors"
                 description="Display detailed molecular properties"
-                checked={showAdvancedDescriptors}
-                onChange={setShowAdvancedDescriptors}
+                checked={localSettings.general.showAdvancedDescriptors}
+                onChange={(v) => handleUpdateGeneral('showAdvancedDescriptors', v)}
               />
               <SettingToggle
                 label="Enable animations"
                 description="Smooth transitions and visual effects"
-                checked={enableAnimations}
-                onChange={setEnableAnimations}
+                checked={localSettings.general.enableAnimations}
+                onChange={(v) => handleUpdateGeneral('enableAnimations', v)}
               />
               <SettingSelect
                 label="Default scoring algorithm"
                 description="Algorithm used for molecule ranking"
-                value={defaultAlgorithm}
-                onChange={setDefaultAlgorithm}
+                value={localSettings.general.defaultAlgorithm}
+                onChange={(v) => handleUpdateGeneral('defaultAlgorithm', v as any)}
                 options={[
                   { value: 'quantum', label: 'Quantum-Inspired Search' },
                   { value: 'classical', label: 'Classical Ranking' },
@@ -148,8 +228,8 @@ const DashboardSettings = () => {
               <SettingSelect
                 label="Export format"
                 description="Default file format for exporting results"
-                value={exportFormat}
-                onChange={setExportFormat}
+                value={localSettings.general.exportFormat}
+                onChange={(v) => handleUpdateGeneral('exportFormat', v as any)}
                 options={[
                   { value: 'csv', label: 'CSV' },
                   { value: 'json', label: 'JSON' },
@@ -175,20 +255,20 @@ const DashboardSettings = () => {
               <SettingToggle
                 label="Enable education mode by default"
                 description="Start with education mode activated on Visualization page"
-                checked={enableEducationByDefault}
-                onChange={setEnableEducationByDefault}
+                checked={localSettings.education.enableEducationByDefault}
+                onChange={(v) => handleUpdateEducation('enableEducationByDefault', v)}
               />
               <SettingToggle
                 label="Show tutorial on startup"
                 description="Display guided walkthrough on first visit"
-                checked={showTutorialOnStartup}
-                onChange={setShowTutorialOnStartup}
+                checked={localSettings.education.showTutorialOnStartup}
+                onChange={(v) => handleUpdateEducation('showTutorialOnStartup', v)}
               />
               <SettingSelect
                 label="Default guidance level"
                 description="How detailed educational explanations should be"
-                value={defaultGuidanceLevel}
-                onChange={setDefaultGuidanceLevel}
+                value={localSettings.education.defaultGuidanceLevel}
+                onChange={(v) => handleUpdateEducation('defaultGuidanceLevel', v as any)}
                 options={[
                   { value: 'detailed', label: '📚 Detailed - All tooltips' },
                   { value: 'moderate', label: '⚡ Moderate - Key insights only' },
@@ -198,8 +278,8 @@ const DashboardSettings = () => {
               <SettingSelect
                 label="Default animation speed"
                 description="Speed of educational animations and transitions"
-                value={defaultAnimationSpeed}
-                onChange={setDefaultAnimationSpeed}
+                value={localSettings.education.defaultAnimationSpeed}
+                onChange={(v) => handleUpdateEducation('defaultAnimationSpeed', v as any)}
                 options={[
                   { value: 'slow', label: '🐢 Slow (detailed learning)' },
                   { value: 'normal', label: '⏱️ Normal (default)' },
@@ -224,8 +304,8 @@ const DashboardSettings = () => {
               <SettingSlider
                 label="3D Visualization Quality"
                 description="Higher = better quality, lower = faster rendering"
-                value={visualization3DQuality}
-                onChange={setVisualization3DQuality}
+                value={localSettings.visualization.visualization3DQuality}
+                onChange={(v) => handleUpdateVisualization('visualization3DQuality', v)}
                 min={25}
                 max={100}
                 step={5}
@@ -233,14 +313,14 @@ const DashboardSettings = () => {
               <SettingToggle
                 label="Enable outbreak mode by default"
                 description="Show probability attractors and clustering"
-                checked={enableOutbreakModeDefault}
-                onChange={setEnableOutbreakModeDefault}
+                checked={localSettings.visualization.enableOutbreakModeDefault}
+                onChange={(v) => handleUpdateVisualization('enableOutbreakModeDefault', v)}
               />
               <SettingSelect
                 label="Default visual mode"
                 description="Starting visualization when visualization page loads"
-                value={defaultVisualMode}
-                onChange={setDefaultVisualMode}
+                value={localSettings.visualization.defaultVisualMode}
+                onChange={(v) => handleUpdateVisualization('defaultVisualMode', v as any)}
                 options={[
                   { value: 'galaxy', label: '🌌 Galaxy View (3D)' },
                   { value: 'cluster', label: '🔥 Cluster Heatmap' },
@@ -251,8 +331,8 @@ const DashboardSettings = () => {
               <SettingSlider
                 label="Heatmap grid size"
                 description="Number of molecules in probability heatmap"
-                value={heatmapSize}
-                onChange={setHeatmapSize}
+                value={localSettings.visualization.heatmapSize}
+                onChange={(v) => handleUpdateVisualization('heatmapSize', v)}
                 min={25}
                 max={100}
                 step={5}
@@ -275,15 +355,15 @@ const DashboardSettings = () => {
               <SettingTextInput
                 label="API Endpoint"
                 description="Backend server URL for API calls"
-                value={apiEndpoint}
-                onChange={setApiEndpoint}
+                value={localSettings.api.apiEndpoint}
+                onChange={(v) => handleUpdateAPI('apiEndpoint', v)}
                 placeholder="http://localhost:8080"
               />
               <SettingSlider
                 label="PubChem API Timeout"
                 description="Maximum wait time for molecule data (seconds)"
-                value={pubchemTimeout}
-                onChange={setPubchemTimeout}
+                value={localSettings.api.pubchemTimeout}
+                onChange={(v) => handleUpdateAPI('pubchemTimeout', v)}
                 min={5}
                 max={60}
                 step={5}
@@ -291,13 +371,13 @@ const DashboardSettings = () => {
               <SettingToggle
                 label="Prefer offline mode"
                 description="Use cached data when available instead of fetching from API"
-                checked={preferOfflineMode}
-                onChange={setPreferOfflineMode}
+                checked={localSettings.api.preferOfflineMode}
+                onChange={(v) => handleUpdateAPI('preferOfflineMode', v)}
               />
               <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg flex gap-2">
                 <AlertCircle className="w-5 h-5 text-blue-500 flex-shrink-0" />
                 <p className="text-sm text-blue-600">
-                  <strong>Current Status:</strong> Backend running at {apiEndpoint}
+                  <strong>Current Status:</strong> Backend running at {localSettings.api.apiEndpoint}
                 </p>
               </div>
             </CardContent>
@@ -318,8 +398,8 @@ const DashboardSettings = () => {
               <SettingSelect
                 label="Color Theme"
                 description="Visual appearance of the application"
-                value={colorTheme}
-                onChange={setColorTheme}
+                value={localSettings.theme.colorTheme}
+                onChange={(v) => handleUpdateTheme('colorTheme', v as any)}
                 options={[
                   { value: 'auto', label: '🔄 Auto (system preference)' },
                   { value: 'light', label: '☀️ Light mode' },
@@ -329,8 +409,8 @@ const DashboardSettings = () => {
               <SettingSelect
                 label="Font Size"
                 description="Base text size throughout the app"
-                value={fontSize}
-                onChange={setFontSize}
+                value={localSettings.theme.fontSize}
+                onChange={(v) => handleUpdateTheme('fontSize', v as any)}
                 options={[
                   { value: 'small', label: 'Small' },
                   { value: 'medium', label: 'Medium (default)' },
@@ -356,8 +436,8 @@ const DashboardSettings = () => {
               <SettingSelect
                 label="Default dataset source"
                 description="Which molecule database to use by default"
-                value={defaultDatasetSource}
-                onChange={setDefaultDatasetSource}
+                value={localSettings.dataset.defaultDatasetSource}
+                onChange={(v) => handleUpdateDataset('defaultDatasetSource', v as any)}
                 options={[
                   { value: 'local', label: '📁 Local Dataset' },
                   { value: 'pubchem', label: '🔬 PubChem Database' },
@@ -367,14 +447,14 @@ const DashboardSettings = () => {
               <SettingToggle
                 label="Apply Lipinski filter by default"
                 description="Only show drug-like molecules by default"
-                checked={lipinskiFilterDefault}
-                onChange={setLipinskiFilterDefault}
+                checked={localSettings.dataset.lipinskiFilterDefault}
+                onChange={(v) => handleUpdateDataset('lipinskiFilterDefault', v)}
               />
               <SettingSlider
                 label="Default toxicity threshold"
                 description="Maximum acceptable toxicity risk (0-1)"
-                value={toxicityThreshold}
-                onChange={setToxicityThreshold}
+                value={localSettings.dataset.toxicityThreshold}
+                onChange={(v) => handleUpdateDataset('toxicityThreshold', v)}
                 min={0}
                 max={1}
                 step={0.05}
@@ -397,20 +477,20 @@ const DashboardSettings = () => {
               <SettingToggle
                 label="Enable notifications"
                 description="Show browser notifications for important events"
-                checked={enableNotifications}
-                onChange={setEnableNotifications}
+                checked={localSettings.notifications.enableNotifications}
+                onChange={(v) => handleUpdateNotifications('enableNotifications', v)}
               />
               <SettingToggle
                 label="Show warnings"
                 description="Display alerts for potential issues (e.g., low diversity)"
-                checked={showWarnings}
-                onChange={setShowWarnings}
+                checked={localSettings.notifications.showWarnings}
+                onChange={(v) => handleUpdateNotifications('showWarnings', v)}
               />
               <SettingToggle
                 label="Sound alerts"
                 description="Play sound when important events occur"
-                checked={soundAlerts}
-                onChange={setSoundAlerts}
+                checked={localSettings.notifications.soundAlerts}
+                onChange={(v) => handleUpdateNotifications('soundAlerts', v)}
               />
             </CardContent>
           </Card>
@@ -430,20 +510,20 @@ const DashboardSettings = () => {
               <SettingToggle
                 label="Cache results"
                 description="Store simulation results locally for faster loading"
-                checked={cacheResults}
-                onChange={setCacheResults}
+                checked={localSettings.performance.cacheResults}
+                onChange={(v) => handleUpdatePerformance('cacheResults', v)}
               />
               <SettingToggle
                 label="Analytics tracking"
                 description="Help us improve by sharing usage analytics (no personal data)"
-                checked={analyticsTracking}
-                onChange={setAnalyticsTracking}
+                checked={localSettings.performance.analyticsTracking}
+                onChange={(v) => handleUpdatePerformance('analyticsTracking', v)}
               />
               <SettingSlider
                 label="Data retention period"
                 description="How many days to keep cached data (0 = never)"
-                value={dataRetention}
-                onChange={setDataRetention}
+                value={localSettings.performance.dataRetention}
+                onChange={(v) => handleUpdatePerformance('dataRetention', v)}
                 min={0}
                 max={90}
                 step={5}
@@ -471,14 +551,14 @@ const DashboardSettings = () => {
               <SettingToggle
                 label="Developer mode"
                 description="Enable debug tools and console logging"
-                checked={developerMode}
-                onChange={setDeveloperMode}
+                checked={localSettings.advanced.developerMode}
+                onChange={(v) => handleUpdateAdvanced('developerMode', v)}
               />
               <SettingToggle
                 label="Verbose logging"
                 description="Log detailed information for debugging"
-                checked={verboseLogging}
-                onChange={setVerboseLogging}
+                checked={localSettings.advanced.verboseLogging}
+                onChange={(v) => handleUpdateAdvanced('verboseLogging', v)}
               />
               <div className="pt-4 border-t space-y-3">
                 <h4 className="font-semibold text-sm">Maintenance</h4>
@@ -487,7 +567,8 @@ const DashboardSettings = () => {
                   className="w-full"
                   onClick={() => {
                     localStorage.removeItem('quantiva-session');
-                    alert('✅ Cache cleared!');
+                    setSaveMessage('✅ Cache cleared!');
+                    setTimeout(() => setSaveMessage(''), 3000);
                   }}
                 >
                   Clear Local Cache
@@ -496,9 +577,10 @@ const DashboardSettings = () => {
                   variant="outline"
                   className="w-full"
                   onClick={() => {
-                    const settings = JSON.parse(localStorage.getItem('quantiva-settings') || '{}');
-                    console.log('Current Settings:', settings);
-                    alert('Settings logged to console');
+                    const settingsData = localStorage.getItem('quantiva-settings');
+                    console.log('Current Settings:', JSON.parse(settingsData || '{}'));
+                    setSaveMessage('✅ Settings logged to console');
+                    setTimeout(() => setSaveMessage(''), 3000);
                   }}
                 >
                   Export Settings to Console
