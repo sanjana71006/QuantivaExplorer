@@ -1,84 +1,57 @@
-import { useState, useCallback, useEffect } from "react";
+import { useCallback } from "react";
 import { motion } from "framer-motion";
-import { Play, RotateCcw, Loader2, AlertTriangle, Biohazard, Bug, Dna } from "lucide-react";
+import { Play, RotateCcw, Loader2, AlertTriangle, Biohazard, Bug, Dna, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { getDataset } from "@/lib/moleculeDataset";
-import { scoreMolecules, defaultWeights, type ScoringWeights, type ScoredMolecule } from "@/lib/quantumEngine";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useGlobalExploration } from "@/context/GlobalExplorationContext";
+import DiseaseAwarePanel from "@/components/DiseaseAwarePanel";
+import SimulationHistoryPanel from "@/components/SimulationHistoryPanel";
+import SensitivityAnalysisPanel from "@/components/SensitivityAnalysisPanel";
+import PerformanceGuardrails from "@/components/PerformanceGuardrails";
+import GuidedDemoMode from "@/components/GuidedDemoMode";
 
 const SimulationControls = () => {
-  const [weights, setWeights] = useState<ScoringWeights>({ ...defaultWeights });
-  const [filterToxic, setFilterToxic] = useState(false);
-  const [filterNonLipinski, setFilterNonLipinski] = useState(false);
-  const [quantumMode, setQuantumMode] = useState(true);
-  const [diseaseMode, setDiseaseMode] = useState("All");
-  const [running, setRunning] = useState(false);
-  const [dataset, setDataset] = useState<any[]>([]);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [results, setResults] = useState<ScoredMolecule[] | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    getDataset()
-      .then((rows) => {
-        if (!active) return;
-        setDataset(rows);
-      })
-      .catch((err) => {
-        if (!active) return;
-        setLoadError(err instanceof Error ? err.message : "Failed to load dataset");
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const updateWeight = (key: keyof ScoringWeights, value: number[]) => {
-    setWeights((prev) => ({ ...prev, [key]: value[0] }));
-  };
+  const {
+    weights,
+    setWeights,
+    filters,
+    setFilters,
+    diffusionEnabled,
+    setDiffusionEnabled,
+    scoringAlgorithm,
+    setScoringAlgorithm,
+    scoredResults,
+    isLoadingDataset,
+    datasetError,
+    runSimulation,
+    simulationMetadata,
+  } = useGlobalExploration();
 
   const handleRun = useCallback(() => {
-    setRunning(true);
-    // Use requestAnimationFrame to allow UI update before heavy computation
-    setTimeout(() => {
-      if (!dataset.length) {
-        setResults([]);
-        setRunning(false);
-        return;
-      }
+    runSimulation();
+  }, [runSimulation]);
 
-      let data = [...dataset];
-      if (filterToxic) data = data.filter((m) => m.toxicity_risk < 0.5);
-      if (filterNonLipinski) data = data.filter((m) => m.lipinski_compliant === 1);
-      const scored = scoreMolecules(data, weights, diseaseMode);
-      setResults(scored);
-      setRunning(false);
-    }, 100);
-  }, [dataset, weights, filterToxic, filterNonLipinski, diseaseMode]);
+  const handleReset = useCallback(() => {
+    setWeights({ binding: 0.25, toxicity: 0.20, solubility: 0.15, lipinski: 0.15, mw: 0.10, logp: 0.15 });
+    setFilters({ lipinskiOnly: false, toxicityThreshold: 1.0, sourceFilter: 'All' });
+    setDiffusionEnabled(true);
+    setScoringAlgorithm('quantum');
+  }, [setWeights, setFilters, setDiffusionEnabled, setScoringAlgorithm]);
 
-  const handleReset = () => {
-    setWeights({ ...defaultWeights });
-    setFilterToxic(false);
-    setFilterNonLipinski(false);
-    setQuantumMode(true);
-    setDiseaseMode("All");
-    setResults(null);
-  };
-
-  const sliders: { key: keyof ScoringWeights; label: string }[] = [
-    { key: "bindingAffinity", label: "Binding Affinity Weight" },
-    { key: "toxicity", label: "Toxicity Weight" },
-    { key: "solubility", label: "Solubility Weight" },
-    { key: "lipinski", label: "Lipinski Compliance Weight" },
-    { key: "molecularWeight", label: "Molecular Weight Score" },
-    { key: "logP", label: "LogP Score Weight" },
+  const sliders = [
+    { key: "binding" as const, label: "Binding Affinity Weight" },
+    { key: "toxicity" as const, label: "Toxicity Weight" },
+    { key: "solubility" as const, label: "Solubility Weight" },
+    { key: "lipinski" as const, label: "Lipinski Compliance Weight" },
+    { key: "mw" as const, label: "Molecular Weight Score" },
+    { key: "logp" as const, label: "LogP Score Weight" },
   ];
 
-  const outbreakModes = [
+  const sourceModes = [
     { value: "All", label: "All Sources", icon: Dna },
     { value: "PubChem", label: "PubChem", icon: Biohazard },
     { value: "Delaney", label: "Delaney", icon: AlertTriangle },
@@ -89,21 +62,30 @@ const SimulationControls = () => {
     <div className="space-y-6">
       <div>
         <h2 className="font-display text-2xl font-bold text-foreground mb-1">Simulation Controls</h2>
-        <p className="text-muted-foreground text-sm">Configure weights, filters, and source mode for quantum-inspired exploration.</p>
+        <p className="text-muted-foreground text-sm">Configure weights, filters, and source mode for quantum-inspired exploration. Changes are synchronized across all views.</p>
       </div>
 
-      {loadError && <p className="text-sm text-destructive">{loadError}</p>}
+      {datasetError && <p className="text-sm text-destructive">{datasetError}</p>}
 
-      {/* Outbreak Mode Selector */}
+      {/* Guided Demo Mode */}
+      <GuidedDemoMode />
+
+      {/* Performance Guardrails */}
+      <PerformanceGuardrails />
+
+      {/* Disease-Aware Mode Panel */}
+      <DiseaseAwarePanel />
+
+      {/* Source Mode Selector */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-5">
-        <h3 className="font-display font-semibold text-foreground mb-3">Dataset Source Mode</h3>
+        <h3 className="font-display font-semibold text-foreground mb-3">Dataset Source Filter</h3>
         <div className="flex flex-wrap gap-3">
-          {outbreakModes.map((mode) => (
+          {sourceModes.map((mode) => (
             <Button
               key={mode.value}
-              variant={diseaseMode === mode.value ? "default" : "outline"}
-              className={diseaseMode === mode.value ? "gradient-primary text-primary-foreground btn-glow" : "border-border hover:bg-muted/50"}
-              onClick={() => setDiseaseMode(mode.value)}
+              variant={filters.sourceFilter === mode.value ? "default" : "outline"}
+              className={filters.sourceFilter === mode.value ? "gradient-primary text-primary-foreground btn-glow" : "border-border hover:bg-muted/50"}
+              onClick={() => setFilters({ sourceFilter: mode.value })}
             >
               <mode.icon className="mr-2 h-4 w-4" />
               {mode.label}
@@ -124,7 +106,7 @@ const SimulationControls = () => {
               </div>
               <Slider
                 value={[weights[s.key]]}
-                onValueChange={(v) => updateWeight(s.key, v)}
+                onValueChange={(v) => setWeights({ [s.key]: v[0] })}
                 max={1}
                 step={0.01}
                 className="[&_[role=slider]]:bg-primary [&_[role=slider]]:border-primary [&_.relative>div]:bg-primary"
@@ -139,15 +121,42 @@ const SimulationControls = () => {
 
           <div className="flex items-center justify-between py-2">
             <Label className="text-sm text-muted-foreground">Filter High Toxicity ({">"}0.5)</Label>
-            <Switch checked={filterToxic} onCheckedChange={setFilterToxic} className="data-[state=checked]:bg-primary" />
+            <Switch 
+              checked={filters.toxicityThreshold < 0.5} 
+              onCheckedChange={(v) => setFilters({ toxicityThreshold: v ? 0.5 : 1.0 })} 
+              className="data-[state=checked]:bg-primary" 
+            />
           </div>
           <div className="flex items-center justify-between py-2">
             <Label className="text-sm text-muted-foreground">Lipinski Compliant Only</Label>
-            <Switch checked={filterNonLipinski} onCheckedChange={setFilterNonLipinski} className="data-[state=checked]:bg-primary" />
+            <Switch 
+              checked={filters.lipinskiOnly} 
+              onCheckedChange={(v) => setFilters({ lipinskiOnly: v })} 
+              className="data-[state=checked]:bg-primary" 
+            />
           </div>
           <div className="flex items-center justify-between py-2">
             <Label className="text-sm text-muted-foreground">Quantum Diffusion Mode</Label>
-            <Switch checked={quantumMode} onCheckedChange={setQuantumMode} className="data-[state=checked]:bg-primary" />
+            <Switch 
+              checked={diffusionEnabled} 
+              onCheckedChange={setDiffusionEnabled} 
+              className="data-[state=checked]:bg-primary" 
+            />
+          </div>
+
+          {/* Scoring Algorithm */}
+          <div className="space-y-2 pt-2">
+            <Label className="text-sm text-muted-foreground">Scoring Algorithm</Label>
+            <Select value={scoringAlgorithm} onValueChange={(v: any) => setScoringAlgorithm(v)}>
+              <SelectTrigger className="bg-card border-border">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-card border-border">
+                <SelectItem value="quantum">Quantum-Inspired</SelectItem>
+                <SelectItem value="classical">Classical</SelectItem>
+                <SelectItem value="hybrid">Hybrid</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Weight Summary */}
@@ -165,34 +174,40 @@ const SimulationControls = () => {
             </div>
           </div>
 
-          {results && (
+          {scoredResults.length > 0 && (
             <div className="glass-card p-4 text-center">
               <p className="text-sm text-muted-foreground mb-1">Molecules Scored</p>
-              <p className="font-display text-3xl font-bold text-gradient">{results.length.toLocaleString()}</p>
+              <p className="font-display text-3xl font-bold text-gradient">{scoredResults.length.toLocaleString()}</p>
               <p className="text-xs text-muted-foreground mt-1">
-                Top score: {results[0]?.weighted_score.toFixed(3)}
+                Top score: {scoredResults[0]?.weighted_score.toFixed(3)}
               </p>
             </div>
           )}
         </motion.div>
       </div>
 
+      {/* Simulation History */}
+      <SimulationHistoryPanel />
+
+      {/* Sensitivity Analysis */}
+      <SensitivityAnalysisPanel />
+
       {/* Action Buttons */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex gap-4">
         <Button
           onClick={handleRun}
-          disabled={running}
+          disabled={isLoadingDataset}
           className="btn-glow gradient-primary text-primary-foreground font-semibold px-8 h-12"
         >
-          {running ? (
+          {isLoadingDataset ? (
             <>
               <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              Running Simulation...
+              Loading...
             </>
           ) : (
             <>
               <Play className="mr-2 h-5 w-5" />
-              Run Simulation
+              Save Snapshot
             </>
           )}
         </Button>
@@ -201,6 +216,12 @@ const SimulationControls = () => {
           Reset
         </Button>
       </motion.div>
+
+      {/* Live sync notification */}
+      <div className="flex items-center gap-2 text-xs text-muted-foreground bg-primary/10 rounded-lg p-3">
+        <Zap className="h-4 w-4 text-primary" />
+        <span>Changes are automatically synchronized to Visualization and Results pages in real-time.</span>
+      </div>
     </div>
   );
 };

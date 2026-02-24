@@ -6,14 +6,17 @@ import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Atom, Maximize2 } from "lucide-react";
-import { getDataset } from "@/lib/moleculeDataset";
+import { Loader2, Atom, Maximize2, Zap } from "lucide-react";
 import { scoreMolecules, quantumWalk, defaultWeights } from "@/lib/quantumEngine";
 import { explainMolecule } from "@/lib/aiExplainer";
 import { useLiveMolecules } from "@/hooks/useLiveMolecules";
 import ApiStatusBadge from "@/components/ApiStatusBadge";
 import SearchBar from "@/components/SearchBar";
 import DataSourceBadge from "@/components/DataSourceBadge";
+import VisualizationMetricsDashboard from "@/components/VisualizationMetricsDashboard";
+import ProbabilityEvolutionReplay from "@/components/ProbabilityEvolutionReplay";
+import DiversityWarningBanner from "@/components/DiversityWarningBanner";
+import { useGlobalExploration } from "@/context/GlobalExplorationContext";
 const ChemicalUniverse3D = lazy(() => import("@/components/ChemicalUniverse3D"));
 import type { ScoredMolecule } from "@/lib/quantumEngine";
 
@@ -41,15 +44,25 @@ const CustomTooltip = ({ active, payload }: any) => {
 };
 
 const Visualization = () => {
-  const [threshold, setThreshold] = useState([0.3]);
-  const [diseaseFilter, setDiseaseFilter] = useState("All");
-  const [selectedMol, setSelectedMol] = useState<ScoredMolecule | null>(null);
-  const [attractorIds, setAttractorIds] = useState<string[]>([]);
+  // Global state from context - auto-synchronized with Simulation page
+  const {
+    scoredResults,
+    filters,
+    setFilters,
+    selectedMolecule,
+    selectMolecule,
+    diffusionEnabled,
+    diversityMetrics,
+    probabilityHistory,
+    weights,
+    isLoadingDataset,
+  } = useGlobalExploration();
+
+  // Local visualization-specific state
   const [visualMode, setVisualMode] = useState<"galaxy" | "cluster" | "network" | "split">("galaxy");
   const [outbreakMode, setOutbreakMode] = useState<boolean>(false);
   const [show3D, setShow3D] = useState(true);
-  const [dataset, setDataset] = useState<any[]>([]);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [attractorIds, setAttractorIds] = useState<string[]>([]);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searchSource, setSearchSource] = useState<string | null>(null);
 
@@ -102,34 +115,13 @@ const Visualization = () => {
   // Live molecules hook — shows live API data when available
   const { items: liveItems, status: liveStatus, source: liveSource, lastUpdated, refresh } = useLiveMolecules({ limit: 50 });
 
-  useEffect(() => {
-    let active = true;
-    getDataset()
-      .then((rows) => {
-        if (!active) return;
-        setDataset(rows);
-      })
-      .catch((err) => {
-        if (!active) return;
-        setLoadError(err instanceof Error ? err.message : "Failed to load dataset");
-      });
+  // Use global scoredResults directly - no need for local dataset loading
+  const scored = scoredResults;
 
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  // If user selects the UI 'Quantum' mode, don't use it as a dataset source filter.
-  // Treat 'Quantum' as a visualization/mode choice (i.e. equivalent to 'All' for source filtering).
-  const effectiveFilter = diseaseFilter === "Quantum" ? "All" : diseaseFilter;
-
-  const scored = useMemo(() => {
-    return scoreMolecules(dataset, defaultWeights, effectiveFilter);
-  }, [dataset, effectiveFilter]);
-
+  // Filter by score threshold from global context
   const filtered = useMemo(
-    () => scored.filter((m) => m.weighted_score >= threshold[0]),
-    [scored, threshold]
+    () => scored.filter((m) => m.weighted_score >= (filters.scoreThreshold || 0.3)),
+    [scored, filters.scoreThreshold]
   );
 
   // Heatmap from quantum walk (improved UX)
@@ -182,9 +174,9 @@ const Visualization = () => {
   };
 
   const explanation = useMemo(() => {
-    if (!selectedMol) return null;
-    return explainMolecule(selectedMol);
-  }, [selectedMol]);
+    if (!selectedMolecule) return null;
+    return explainMolecule(selectedMolecule, weights);
+  }, [selectedMolecule, weights]);
 
   // When outbreakMode is toggled on, compute top-5 attractors and set them
   useEffect(() => {
@@ -224,7 +216,22 @@ const Visualization = () => {
         <p className="text-muted-foreground text-sm">Explore molecular clusters, probability distributions, and the 3D chemical universe.</p>
       </div>
 
-      {loadError && <p className="text-sm text-destructive">{loadError}</p>}
+      {isLoadingDataset && <p className="text-sm text-muted-foreground">Loading dataset...</p>}
+
+      {/* Visualization Metrics Dashboard */}
+      <VisualizationMetricsDashboard />
+
+      {/* Diversity Warning Banner */}
+      <DiversityWarningBanner />
+
+      {/* Probability Evolution Replay */}
+      <ProbabilityEvolutionReplay />
+
+      {/* Live sync notification */}
+      <div className="flex items-center gap-2 text-xs text-muted-foreground bg-primary/10 rounded-lg p-3">
+        <Zap className="h-4 w-4 text-primary" />
+        <span>Visualization is synchronized with Simulation settings. Changes update in real-time.</span>
+      </div>
 
       {/* Live API status */}
       <div className="flex items-center justify-end">
@@ -248,7 +255,7 @@ const Visualization = () => {
                   logP: Number(first.logP) || 0,
                   probability: 0,
                 } as any;
-                setSelectedMol(candidate);
+                selectMolecule(candidate);
               }
             }}
           />
@@ -303,7 +310,7 @@ const Visualization = () => {
                     logP: Number(it.logP) || 0,
                     probability: 0,
                   } as any;
-                  setSelectedMol(candidate);
+                  selectMolecule(candidate);
                 }}>Inspect</button>
               </div>
             </div>
@@ -315,14 +322,14 @@ const Visualization = () => {
       <div className="glass-card p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
         <Label className="text-sm text-muted-foreground whitespace-nowrap">Score Threshold</Label>
         <Slider
-          value={threshold}
-          onValueChange={setThreshold}
+          value={[filters.scoreThreshold || 0.3]}
+          onValueChange={(v) => setFilters({ scoreThreshold: v[0] })}
           max={1}
           step={0.01}
           className="flex-1 [&_[role=slider]]:bg-primary [&_[role=slider]]:border-primary [&_.relative>div]:bg-primary"
         />
-        <span className="text-sm font-mono text-primary min-w-[3rem]">{threshold[0].toFixed(2)}</span>
-        <Select value={diseaseFilter} onValueChange={setDiseaseFilter}>
+        <span className="text-sm font-mono text-primary min-w-[3rem]">{(filters.scoreThreshold || 0.3).toFixed(2)}</span>
+        <Select value={filters.sourceFilter || "All"} onValueChange={(v) => setFilters({ sourceFilter: v })}>
           <SelectTrigger className="w-36 bg-card border-border">
             <SelectValue />
           </SelectTrigger>
@@ -371,8 +378,8 @@ const Visualization = () => {
                 <Suspense fallback={<div className="h-full flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
                   <ChemicalUniverse3D
                         molecules={displayedMolecules}
-                    onSelectMolecule={setSelectedMol}
-                    selectedMoleculeId={selectedMol?.molecule_id || null}
+                    onSelectMolecule={selectMolecule}
+                    selectedMoleculeId={selectedMolecule?.molecule_id || null}
                     attractorIds={attractorIds}
                     outbreak={outbreakMode}
                   />
@@ -393,7 +400,7 @@ const Visualization = () => {
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 20%, 18%)" />
                   <XAxis dataKey="molecular_weight" name="MW" type="number" />
                   <YAxis dataKey="logP" name="LogP" type="number" />
-                  <Scatter data={scatterData} onClick={(d: any) => d && setSelectedMol(d)} />
+                  <Scatter data={scatterData} onClick={(d: any) => d && selectMolecule(d)} />
                 </ScatterChart>
               </ResponsiveContainer>
             </div>
@@ -405,8 +412,8 @@ const Visualization = () => {
               <Suspense fallback={<div className="h-full flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
                 <ChemicalUniverse3D
                   molecules={filtered.slice(0, 500)}
-                  onSelectMolecule={setSelectedMol}
-                  selectedMoleculeId={selectedMol?.molecule_id || null}
+                  onSelectMolecule={selectMolecule}
+                  selectedMoleculeId={selectedMolecule?.molecule_id || null}
                   attractorIds={attractorIds}
                   outbreak={outbreakMode}
                 />
@@ -427,7 +434,7 @@ const Visualization = () => {
               <XAxis dataKey="molecular_weight" name="MW" type="number" tick={{ fill: "hsl(215, 20%, 55%)", fontSize: 12 }} axisLine={{ stroke: "hsl(222, 20%, 18%)" }} label={{ value: "Molecular Weight", position: "bottom", fill: "hsl(215, 20%, 55%)", fontSize: 12 }} />
               <YAxis dataKey="logP" name="LogP" type="number" tick={{ fill: "hsl(215, 20%, 55%)", fontSize: 12 }} axisLine={{ stroke: "hsl(222, 20%, 18%)" }} label={{ value: "LogP", angle: -90, position: "insideLeft", fill: "hsl(215, 20%, 55%)", fontSize: 12 }} />
               <Tooltip content={<CustomTooltip />} />
-              <Scatter data={scatterData} cursor="pointer" onClick={(d: any) => d && setSelectedMol(d)}>
+              <Scatter data={scatterData} cursor="pointer" onClick={(d: any) => d && selectMolecule(d)}>
                 {scatterData.map((entry, i) => (
                   <Cell key={i} fill={diseaseColors[entry.disease_target] || diseaseColors.unknown} fillOpacity={0.7} r={4 + entry.drug_likeness_score * 8} />
                 ))}
@@ -464,7 +471,7 @@ const Visualization = () => {
                       opacity: 0.95,
                     }}
                     title={`#${cell.index + 1} ${mol?.name ?? "—"}: ${percent}%`}
-                    onClick={() => mol && setSelectedMol(mol)}
+                    onClick={() => mol && selectMolecule(mol)}
                   >
                     {/* Show percent label when reasonably visible */}
                     <div className="text-[10px] font-semibold text-white drop-shadow-sm" style={{ opacity: absProb > 0.0005 ? 1 : 0.0 }}>
@@ -490,11 +497,11 @@ const Visualization = () => {
       </div>
 
       {/* AI Explainer Panel */}
-      {selectedMol && explanation && (
+      {selectedMolecule && explanation && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-6 border-primary/20">
           <h3 className="font-display font-semibold text-foreground mb-3 flex items-center gap-2">
             <Atom className="h-5 w-5 text-primary" />
-            Why this molecule? — {selectedMol.name}
+            Why this molecule? — {selectedMolecule.name}
           </h3>
           <p className="text-sm text-muted-foreground mb-4">{explanation.summary}</p>
 

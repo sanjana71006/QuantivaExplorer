@@ -1,15 +1,19 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trophy, ChevronDown, Download, Atom, FlaskConical, FileText, Biohazard, AlertTriangle, Bug, Dna } from "lucide-react";
+import { Trophy, ChevronDown, Download, Atom, FlaskConical, FileText, Biohazard, AlertTriangle, Bug, Dna, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { getDataset } from "@/lib/moleculeDataset";
-import { scoreMolecules, getTopCandidates, defaultWeights, type ScoredMolecule } from "@/lib/quantumEngine";
+import { getTopCandidates, type ScoredMolecule } from "@/lib/quantumEngine";
 import { explainMolecule, generateOutbreakReport } from "@/lib/aiExplainer";
 import MoleculeSketch from "@/components/MoleculeSketch";
+import SimulationSnapshotPanel from "@/components/SimulationSnapshotPanel";
+import ExportScientificReport from "@/components/ExportScientificReport";
+import LipinskiViolationOverlay from "@/components/LipinskiViolationOverlay";
+import DiversityWarningBanner from "@/components/DiversityWarningBanner";
+import { useGlobalExploration } from "@/context/GlobalExplorationContext";
 
 const getProbBadgeClass = (p: number, total: number) => {
   const normalized = p * total;
@@ -19,41 +23,26 @@ const getProbBadgeClass = (p: number, total: number) => {
 };
 
 const Results = () => {
+  // Global state - synchronized with Simulation and Visualization
+  const { scoredResults, filters, setFilters, weights, isLoadingDataset } = useGlobalExploration();
+
+  // Local UI state
   const [expanded, setExpanded] = useState<number | null>(null);
   const [modalCandidate, setModalCandidate] = useState<ScoredMolecule | null>(null);
-  const [diseaseFilter, setDiseaseFilter] = useState("All");
   const [showReport, setShowReport] = useState(false);
   const [topN, setTopN] = useState(20);
-  const [dataset, setDataset] = useState<any[]>([]);
-  const [loadError, setLoadError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let active = true;
-    getDataset()
-      .then((rows) => {
-        if (!active) return;
-        setDataset(rows);
-      })
-      .catch((err) => {
-        if (!active) return;
-        setLoadError(err instanceof Error ? err.message : "Failed to load dataset");
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const scored = useMemo(() => {
-    return scoreMolecules(dataset, defaultWeights, diseaseFilter);
-  }, [dataset, diseaseFilter]);
+  // Use global scored results
+  const scored = scoredResults;
+  const diseaseFilter = filters.sourceFilter || "All";
+  const setDiseaseFilter = (v: string) => setFilters({ sourceFilter: v });
 
   const topCandidates = useMemo(() => getTopCandidates(scored, topN), [scored, topN]);
 
   const explanation = useMemo(() => {
     if (!modalCandidate) return null;
-    return explainMolecule(modalCandidate);
-  }, [modalCandidate]);
+    return explainMolecule(modalCandidate, weights);
+  }, [modalCandidate, weights]);
 
   const report = useMemo(() => {
     if (!showReport || diseaseFilter === "All") return null;
@@ -83,7 +72,7 @@ const Results = () => {
           <h2 className="font-display text-2xl font-bold text-foreground mb-1">Ranking Results</h2>
           <p className="text-muted-foreground text-sm">Top drug candidates ranked by quantum-inspired scoring across {scored.length.toLocaleString()} molecules.</p>
         </div>
-        {loadError && <p className="text-sm text-destructive">{loadError}</p>}
+        {isLoadingDataset && <p className="text-sm text-muted-foreground">Loading...</p>}
         <div className="flex gap-3">
           <Select value={diseaseFilter} onValueChange={setDiseaseFilter}>
             <SelectTrigger className="w-36 bg-card border-border">
@@ -105,8 +94,21 @@ const Results = () => {
             <Download className="mr-2 h-4 w-4" />
             Download CSV
           </Button>
+          <ExportScientificReport />
         </div>
       </div>
+
+      {/* Diversity Warning Banner */}
+      <DiversityWarningBanner />
+
+      {/* Live sync notification */}
+      <div className="flex items-center gap-2 text-xs text-muted-foreground bg-primary/10 rounded-lg p-3">
+        <Zap className="h-4 w-4 text-primary" />
+        <span>Rankings reflect current simulation settings. Changes in Simulation Controls update results in real-time.</span>
+      </div>
+
+      {/* Simulation Snapshot Panel */}
+      <SimulationSnapshotPanel />
 
       {/* Outbreak Report */}
       {showReport && report && (
@@ -160,11 +162,7 @@ const Results = () => {
                 <Badge variant="outline" className={getProbBadgeClass(c.probability, scored.length)}>
                   P: {(c.probability * 1000).toFixed(2)}‰
                 </Badge>
-                {c.lipinski_compliant ? (
-                  <Badge variant="outline" className="border-success/30 text-success text-xs">Lipinski ✓</Badge>
-                ) : (
-                  <Badge variant="outline" className="border-destructive/30 text-destructive text-xs">Lipinski ✗</Badge>
-                )}
+                <LipinskiViolationOverlay molecule={c} compact />
                 <div className="text-right">
                   <p className="text-xs text-muted-foreground">Score</p>
                   <p className="font-display font-bold text-lg text-gradient">{c.weighted_score.toFixed(3)}</p>
@@ -290,16 +288,10 @@ const Results = () => {
                 </TableBody>
               </Table>
 
-              {/* Lipinski */}
+              {/* Lipinski Rule of Five - Enhanced */}
               <div>
                 <h4 className="text-xs text-muted-foreground mb-2">Lipinski Rule of Five</h4>
-                <div className="flex flex-wrap gap-2">
-                  {explanation.lipinskiDetails.map((d, i) => (
-                    <Badge key={i} variant="outline" className={`text-xs ${d.includes("✓") ? "border-success/30 text-success" : "border-destructive/30 text-destructive"}`}>
-                      {d}
-                    </Badge>
-                  ))}
-                </div>
+                <LipinskiViolationOverlay molecule={modalCandidate} />
               </div>
 
               {/* Score Breakdown */}

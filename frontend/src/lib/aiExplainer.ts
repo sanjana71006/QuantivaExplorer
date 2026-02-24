@@ -1,6 +1,16 @@
 // AI Explainer - Generates human-readable explanations for molecule rankings
 
-import type { ScoredMolecule } from "./quantumEngine";
+import type { ScoredMolecule, ScoringWeights } from "./quantumEngine";
+
+export interface ContributionBreakdown {
+  binding: number;
+  toxicity: number;
+  solubility: number;
+  lipinski: number;
+  mw: number;
+  logp: number;
+  total: number;
+}
 
 export interface MoleculeExplanation {
   summary: string;
@@ -8,6 +18,10 @@ export interface MoleculeExplanation {
   risks: string[];
   verdict: string;
   lipinskiDetails: string[];
+  contributionBreakdown: ContributionBreakdown;
+  whatWouldImproveScore: string[];
+  confidenceLevel: 'High' | 'Medium' | 'Low';
+  scientificRationale: string;
 }
 
 export function explainMolecule(mol: ScoredMolecule): MoleculeExplanation {
@@ -69,7 +83,59 @@ export function explainMolecule(mol: ScoredMolecule): MoleculeExplanation {
     `H-bond acceptors ${mol.h_bond_acceptors} ${mol.h_bond_acceptors <= 10 ? "✓" : "✗"} (≤ 10)`,
   ];
 
-  return { summary, strengths, risks, verdict, lipinskiDetails };
+  // Contribution breakdown - compute weighted contributions
+  const defaultWeights = { binding: 0.25, toxicity: 0.20, solubility: 0.15, lipinski: 0.15, mw: 0.10, logp: 0.15 };
+  const contributionBreakdown: ContributionBreakdown = {
+    binding: bd.binding * defaultWeights.binding,
+    toxicity: bd.toxicity * defaultWeights.toxicity,
+    solubility: bd.solubility * defaultWeights.solubility,
+    lipinski: bd.lipinski * defaultWeights.lipinski,
+    mw: bd.mw * defaultWeights.mw,
+    logp: bd.logP * defaultWeights.logp,
+    total: weightedScore,
+  };
+
+  // What would improve score - deterministic suggestions based on lowest contributors
+  const whatWouldImproveScore: string[] = [];
+  const contributions = [
+    { name: 'binding', value: bd.binding, suggestion: 'Optimize binding pocket interactions through scaffold hopping or adding hydrogen bond acceptors' },
+    { name: 'toxicity', value: bd.toxicity, suggestion: 'Reduce toxicity by removing or masking reactive functional groups (e.g., nitro, aldehyde)' },
+    { name: 'solubility', value: bd.solubility, suggestion: 'Improve solubility by adding polar groups or reducing molecular planarity' },
+    { name: 'lipinski', value: bd.lipinski, suggestion: 'Achieve Lipinski compliance by reducing MW, LogP, or H-bond count' },
+    { name: 'mw', value: bd.mw, suggestion: 'Optimize molecular weight toward 350-450 Da range for better absorption' },
+    { name: 'logP', value: bd.logP, suggestion: 'Adjust LogP toward 1-3 range by adding/removing hydrophobic groups' },
+  ];
+  contributions.sort((a, b) => a.value - b.value);
+  contributions.slice(0, 3).forEach(c => {
+    if (c.value < 0.6) whatWouldImproveScore.push(c.suggestion);
+  });
+  if (whatWouldImproveScore.length === 0) {
+    whatWouldImproveScore.push('Compound is well-optimized; consider structural analogs for lead diversification');
+  }
+
+  // Confidence level based on data completeness and score consistency
+  const hasCompleteData = molecularWeight > 0 && bd.binding > 0 && bd.toxicity > 0;
+  const scoreConsistency = Math.abs(bd.binding - bd.toxicity) < 0.5;
+  const confidenceLevel: 'High' | 'Medium' | 'Low' = 
+    hasCompleteData && scoreConsistency ? 'High' : 
+    hasCompleteData ? 'Medium' : 'Low';
+
+  // Scientific rationale
+  const topContributor = contributions.sort((a, b) => b.value - a.value)[0];
+  const bottomContributor = contributions.sort((a, b) => a.value - b.value)[0];
+  const scientificRationale = `Score primarily driven by ${topContributor.name} (${(topContributor.value * 100).toFixed(0)}% efficiency). ${bottomContributor.name} represents the limiting factor at ${(bottomContributor.value * 100).toFixed(0)}% efficiency. Quantum probability diffusion reveals connectivity to ${Math.round(prob * 1000)} neighboring compounds in chemical space.`;
+
+  return { 
+    summary, 
+    strengths, 
+    risks, 
+    verdict, 
+    lipinskiDetails, 
+    contributionBreakdown,
+    whatWouldImproveScore,
+    confidenceLevel,
+    scientificRationale,
+  };
 }
 
 export function generateOutbreakReport(

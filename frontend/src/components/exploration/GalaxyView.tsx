@@ -44,8 +44,8 @@ function InstancedMolecules() {
     const cols = molecules.map(m => {
       const p = Math.max(0, Math.min(1, m.probability));
       const hue = 280 - p * 240; // purple to yellow
-      const sat = 70 + p * 20;
-      const light = 45 + p * 20;
+      const sat = 90 + p * 10;
+      const light = 60 + p * 25; // Brighter colors for visibility
       return new THREE.Color(`hsl(${hue}, ${sat}%, ${light}%)`);
     });
 
@@ -131,7 +131,7 @@ function InstancedMolecules() {
         }}
       >
         <sphereGeometry args={[1, 16, 16]} />
-        <meshPhongMaterial vertexColors shininess={80} />
+        <meshStandardMaterial vertexColors emissive="#ffffff" emissiveIntensity={0.3} roughness={0.3} metalness={0.2} />
       </instancedMesh>
 
       {/* Hovered tooltip */}

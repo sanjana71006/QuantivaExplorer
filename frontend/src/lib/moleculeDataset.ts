@@ -139,7 +139,7 @@ export async function getDataset(): Promise<Molecule[]> {
   return inflight;
 }
 
-export async function getDatasetSlice(size: "small" | "benchmark" | "full"): Promise<Molecule[]> {
+export async function getDatasetSlice(size: string): Promise<Molecule[]> {
   const all = await getDataset();
   switch (size) {
     case "small":
@@ -147,11 +147,27 @@ export async function getDatasetSlice(size: "small" | "benchmark" | "full"): Pro
     case "benchmark":
       return all.slice(0, 500);
     case "full":
+    case "local":
+    case "pubchem":
+    case "hybrid":
+    default:
       return all;
   }
 }
 
 export function getDatasetStats(molecules: Molecule[]) {
+  // Guard against undefined/null input
+  if (!molecules || !Array.isArray(molecules)) {
+    return {
+      count: 0,
+      features: 19,
+      avgScore: 0,
+      avgMW: 0,
+      lipinskiCompliant: 0,
+      sourceBreakdown: {},
+    };
+  }
+
   const safeAvg = (arr: number[]) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0);
 
   const sourceBreakdown = molecules.reduce<Record<string, number>>((acc, m) => {

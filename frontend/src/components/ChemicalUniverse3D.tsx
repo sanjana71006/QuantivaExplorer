@@ -131,15 +131,26 @@ export default function ChemicalUniverse3D({ molecules, onSelectMolecule, select
 
     const clusterAssignments = kMeans(normFeatures, Math.min(kForN, Math.max(1, displayed.length)));
 
-    // map cluster -> color (distinct hues with high saturation/lightness)
+    // map cluster -> color (vibrant distinct cluster colors)
     const kUsed = Math.max(1, Math.min(12, Math.round(Math.sqrt(Math.max(1, displayed.length)))));
+    // Pre-defined vibrant cluster colors for better distinction
+    const clusterPalette = [
+      new THREE.Color(0xff6b6b), // coral red
+      new THREE.Color(0x4ecdc4), // teal
+      new THREE.Color(0xffe66d), // yellow
+      new THREE.Color(0x95e1d3), // mint
+      new THREE.Color(0xf38181), // salmon
+      new THREE.Color(0xaa96da), // lavender
+      new THREE.Color(0xfcbad3), // pink
+      new THREE.Color(0xa8d8ea), // sky blue
+      new THREE.Color(0xf9ed69), // bright yellow
+      new THREE.Color(0x6a0572), // purple
+      new THREE.Color(0x1fab89), // green
+      new THREE.Color(0xf85f73), // magenta
+    ];
     const cols = displayed.map((m, i) => {
       const cluster = clusterAssignments[i] ?? 0;
-      const hue = Math.round(((cluster % kUsed) / kUsed) * 360);
-      // vary saturation and lightness slightly per-cluster for contrast
-      const sat = 72;
-      const light = 48 + ((cluster % 3) * 6);
-      return new THREE.Color(`hsl(${hue}, ${sat}%, ${light}%)`);
+      return clusterPalette[cluster % clusterPalette.length].clone();
     });
 
     const sz = displayed.map((m) => 0.05 + Math.max(0, Math.min(1, Number(m.drug_likeness_score ?? 0.5))) * 0.22);
@@ -152,28 +163,36 @@ export default function ChemicalUniverse3D({ molecules, onSelectMolecule, select
     const tempMat = useMemo(() => new THREE.Object3D(), []);
     const tmpVec = useMemo(() => new THREE.Vector3(), []);
     const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+    const colorsApplied = useRef(false);
 
+    // Pre-compute color array for instanced mesh
     const colorArray = useMemo(() => {
       const arr = new Float32Array(displayed.length * 3);
       for (let i = 0; i < displayed.length; i++) {
-        const c = colors[i] ?? new THREE.Color(0x888888);
-        // ensure colors are within 0..1
-        arr[i * 3 + 0] = Math.min(1, Math.max(0, c.r));
-        arr[i * 3 + 1] = Math.min(1, Math.max(0, c.g));
-        arr[i * 3 + 2] = Math.min(1, Math.max(0, c.b));
+        const c = colors[i] ?? new THREE.Color(0xff6b6b);
+        arr[i * 3 + 0] = c.r;
+        arr[i * 3 + 1] = c.g;
+        arr[i * 3 + 2] = c.b;
       }
       return arr;
     }, [colors, displayed.length]);
 
+    // Reset flag when colors change
     useEffect(() => {
-      if (!meshRef.current) return;
-      const attr = new THREE.InstancedBufferAttribute(colorArray, 3);
-      attr.needsUpdate = true;
-      meshRef.current.instanceColor = attr;
+      colorsApplied.current = false;
     }, [colorArray]);
 
     useFrame((state) => {
       if (!meshRef.current) return;
+      
+      // Apply colors once per color change
+      if (!colorsApplied.current) {
+        const attr = new THREE.InstancedBufferAttribute(colorArray, 3);
+        meshRef.current.instanceColor = attr;
+        meshRef.current.instanceColor.needsUpdate = true;
+        colorsApplied.current = true;
+      }
+      
       for (let i = 0; i < displayed.length; i++) {
         const p = points[i];
         tempMat.position.set(p[0], p[1], p[2]);
@@ -207,7 +226,7 @@ export default function ChemicalUniverse3D({ molecules, onSelectMolecule, select
           }}
         >
           <sphereGeometry args={[1, 16, 16]} />
-          <meshPhongMaterial vertexColors shininess={80} />
+          <meshBasicMaterial vertexColors />
         </instancedMesh>
       </>
     );

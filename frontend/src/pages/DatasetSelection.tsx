@@ -1,16 +1,22 @@
 import { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Database, Layers, TrendingUp, Atom, Shield, Beaker } from "lucide-react";
+import { Database, Layers, TrendingUp, Atom, Shield, Beaker, Zap } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { getDatasetSlice, getDatasetStats } from "@/lib/moleculeDataset";
 import MoleculeSketch from "@/components/MoleculeSketch";
+import DatasetAnalytics from "@/components/DatasetAnalytics";
+import DiseaseAwarePanel from "@/components/DiseaseAwarePanel";
+import { useGlobalExploration } from "@/context/GlobalExplorationContext";
 
 const statIcons = [Database, Layers, TrendingUp, Shield, Beaker, Atom];
 
 const DatasetSelection = () => {
-  const [selected, setSelected] = useState<"small" | "benchmark" | "full">("small");
+  // Global state - sync selected dataset to context
+  const { datasetMode, setDatasetMode, currentDataset, isLoadingDataset } = useGlobalExploration();
+
+  // Local UI state
   const [molecules, setMolecules] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -19,7 +25,7 @@ const DatasetSelection = () => {
     let active = true;
     setLoading(true);
     setError(null);
-    getDatasetSlice(selected)
+    getDatasetSlice(datasetMode)
       .then((rows) => {
         if (!active) return;
         setMolecules(rows);
@@ -35,7 +41,7 @@ const DatasetSelection = () => {
     return () => {
       active = false;
     };
-  }, [selected]);
+  }, [datasetMode]);
 
   const stats = useMemo(() => getDatasetStats(molecules), [molecules]);
 
@@ -53,19 +59,31 @@ const DatasetSelection = () => {
         <p className="text-muted-foreground text-sm">Choose a real candidate subset for exploration. Data is loaded from the cleaned production dataset.</p>
       </div>
 
-      <Select value={selected} onValueChange={(v) => setSelected(v as any)}>
-        <SelectTrigger className="w-full max-w-sm bg-card border-border">
+      {/* Live sync notification */}
+      <div className="flex items-center gap-2 text-xs text-muted-foreground bg-primary/10 rounded-lg p-3">
+        <Zap className="h-4 w-4 text-primary" />
+        <span>Dataset selection controls the pipeline. Changes propagate to Simulation, Visualization, and Results.</span>
+      </div>
+
+      <Select value={datasetMode} onValueChange={(v) => setDatasetMode(v as any)}>
+        <SelectTrigger className="w-full max-w-sm border-border shadow-sm">
           <SelectValue />
         </SelectTrigger>
-        <SelectContent className="bg-card border-border">
+        <SelectContent className="border-border shadow-lg">
           <SelectItem value="small">Small Dataset (50 molecules)</SelectItem>
           <SelectItem value="benchmark">Benchmark Dataset (500 molecules)</SelectItem>
           <SelectItem value="full">Full Dataset (all molecules)</SelectItem>
         </SelectContent>
       </Select>
 
-      {loading && <p className="text-sm text-muted-foreground">Loading dataset...</p>}
+      {(loading || isLoadingDataset) && <p className="text-sm text-muted-foreground">Loading dataset...</p>}
       {error && <p className="text-sm text-destructive">{error}</p>}
+
+      {/* Disease-Aware Mode Panel */}
+      <DiseaseAwarePanel />
+
+      {/* Dataset Analytics */}
+      <DatasetAnalytics />
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -117,7 +135,7 @@ const DatasetSelection = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {molecules.slice(0, 50).map((mol) => (
+              {(molecules || []).slice(0, 50).map((mol) => (
                 <TableRow key={mol.molecule_id} className="border-border hover:bg-muted/30 transition-colors">
                   <TableCell className="font-mono text-sm text-primary">{mol.molecule_id}</TableCell>
                   <TableCell>
