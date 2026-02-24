@@ -139,9 +139,9 @@ const DatasetSelection = () => {
                 <TableRow key={mol.molecule_id} className="border-border hover:bg-muted/30 transition-colors">
                   <TableCell className="font-mono text-sm text-primary">{mol.molecule_id}</TableCell>
                   <TableCell>
-                    {/* lazy-render 2D sketch (falls back to SMILES text if dependency missing) */}
+                    {/* lazy-render 2D sketch from PubChem (falls back to SmilesDrawer) */}
                     <div className="w-20 h-12">
-                      <MoleculeSketch smiles={mol.smiles} size={64} />
+                      <MoleculeSketch smiles={mol.smiles} name={mol.name} cid={(mol as any).cid} size={64} />
                     </div>
                   </TableCell>
                   <TableCell className="text-foreground font-medium">{mol.name}</TableCell>

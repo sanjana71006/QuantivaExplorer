@@ -1,7 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Props = {
   smiles?: string | null;
+  name?: string | null;
+  cid?: number | string | null;
   size?: number;
 };
 
@@ -11,20 +13,44 @@ declare global {
   }
 }
 
-export default function MoleculeSketch({ smiles, size = 80 }: Props) {
+export default function MoleculeSketch({ smiles, name, cid, size = 80 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const [pubchemUrl, setPubchemUrl] = useState<string | null>(null);
+  const [pubchemFailed, setPubchemFailed] = useState(false);
 
+  // Try to get PubChem image URL
   useEffect(() => {
+    setPubchemFailed(false);
+    setPubchemUrl(null);
+
+    // Build PubChem URL - prefer CID, then name, then SMILES
+    let url: string | null = null;
+    
+    if (cid) {
+      url = `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${cid}/PNG?image_size=${size}x${size}`;
+    } else if (name && name.length > 1) {
+      url = `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${encodeURIComponent(name)}/PNG?image_size=${size}x${size}`;
+    } else if (smiles && smiles.length > 1) {
+      // SMILES needs to be URL encoded
+      url = `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/smiles/${encodeURIComponent(smiles)}/PNG?image_size=${size}x${size}`;
+    }
+
+    if (url) {
+      setPubchemUrl(url);
+    } else {
+      setPubchemFailed(true);
+    }
+  }, [smiles, name, cid, size]);
+
+  // Fallback to SmilesDrawer if PubChem fails
+  useEffect(() => {
+    if (!pubchemFailed || !smiles) return;
+    
     let mounted = true;
     const container = containerRef.current;
     if (!container) return;
 
     container.innerHTML = "";
-
-    if (!smiles) {
-      container.textContent = "No SMILES";
-      return;
-    }
 
     const render = () => {
       try {
@@ -48,12 +74,10 @@ export default function MoleculeSketch({ smiles, size = 80 }: Props) {
       }
     };
 
-    // If already loaded
     if (render()) return;
 
     const scriptId = "smiles-drawer-cdn";
-    const scriptUrl =
-      "https://unpkg.com/smiles-drawer/dist/smiles-drawer.min.js";
+    const scriptUrl = "https://unpkg.com/smiles-drawer/dist/smiles-drawer.min.js";
 
     let script = document.getElementById(scriptId) as HTMLScriptElement | null;
 
@@ -75,8 +99,41 @@ export default function MoleculeSketch({ smiles, size = 80 }: Props) {
       mounted = false;
       script?.removeEventListener("load", onLoad);
     };
-  }, [smiles, size]);
+  }, [pubchemFailed, smiles, size]);
 
+  const handleImageError = () => {
+    setPubchemFailed(true);
+    setPubchemUrl(null);
+  };
+
+  // Show PubChem image if available
+  if (pubchemUrl && !pubchemFailed) {
+    return (
+      <div
+        style={{
+          width: size,
+          height: size,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "white",
+          borderRadius: 4,
+        }}
+        aria-label={name ?? smiles ?? "molecule"}
+      >
+        <img
+          src={pubchemUrl}
+          alt={name ?? smiles ?? "Molecular structure"}
+          width={size}
+          height={size}
+          onError={handleImageError}
+          style={{ objectFit: "contain" }}
+        />
+      </div>
+    );
+  }
+
+  // Fallback container for SmilesDrawer
   return (
     <div
       ref={containerRef}
@@ -88,8 +145,12 @@ export default function MoleculeSketch({ smiles, size = 80 }: Props) {
         justifyContent: "center",
         fontSize: 10,
         color: "#0f172a",
+        background: "white",
+        borderRadius: 4,
       }}
       aria-label={smiles ?? "molecule"}
-    />
+    >
+      {!smiles && "No structure"}
+    </div>
   );
 }

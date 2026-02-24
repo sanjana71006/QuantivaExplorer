@@ -146,7 +146,7 @@ const Results = () => {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-3 mb-1">
                   <div className="w-14 h-10">
-                    <MoleculeSketch smiles={c.smiles} size={48} />
+                    <MoleculeSketch smiles={c.smiles} name={c.name} cid={(c as any).cid} size={48} />
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
@@ -239,17 +239,22 @@ const Results = () => {
           </DialogHeader>
           {modalCandidate && explanation && (
             <div className="space-y-5">
-              {/* Structure preview */}
-              <div className="h-32 rounded-lg bg-muted/30 flex items-center justify-center overflow-hidden relative">
-                <svg width="200" height="100" viewBox="0 0 200 100">
-                  {[[30,50,70,25],[70,25,110,50],[110,50,70,75],[70,75,30,50],[110,50,150,25],[150,25,150,65],[150,65,110,50]].map(([x1,y1,x2,y2],i) => (
-                    <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="hsl(186,100%,50%)" strokeWidth={2} strokeOpacity={0.6} />
-                  ))}
-                  {[[30,50],[70,25],[110,50],[70,75],[150,25],[150,65]].map(([cx,cy],i) => (
-                    <circle key={i} cx={cx} cy={cy} r={7} fill="hsl(222,40%,10%)" stroke="hsl(186,100%,50%)" strokeWidth={1.5} />
-                  ))}
-                </svg>
-                <span className="absolute bottom-2 right-3 text-xs text-muted-foreground">{modalCandidate.formula}</span>
+              {/* Structure preview from PubChem */}
+              <div className="h-40 rounded-lg bg-white flex items-center justify-center overflow-hidden relative">
+                <img
+                  src={`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${encodeURIComponent(modalCandidate.name)}/PNG?image_size=200x200`}
+                  alt={`${modalCandidate.name} molecular structure`}
+                  className="max-h-36 object-contain"
+                  onError={(e) => {
+                    // Fallback to SMILES-based image
+                    const target = e.target as HTMLImageElement;
+                    if (modalCandidate.smiles && !target.dataset.fallback) {
+                      target.dataset.fallback = 'true';
+                      target.src = `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/smiles/${encodeURIComponent(modalCandidate.smiles)}/PNG?image_size=200x200`;
+                    }
+                  }}
+                />
+                <span className="absolute bottom-2 right-3 text-xs text-muted-foreground bg-white/80 px-1 rounded">{modalCandidate.formula}</span>
               </div>
 
               {/* AI Explanation */}

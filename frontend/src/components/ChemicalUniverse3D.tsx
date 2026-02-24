@@ -255,7 +255,7 @@ export default function ChemicalUniverse3D({ molecules, onSelectMolecule, select
               <div className="glass-card p-3 text-xs min-w-[220px] pointer-events-none -translate-x-1/2 -translate-y-full mb-2">
                 <div className="flex items-start gap-3">
                   <div className="w-20 h-16">
-                    <MoleculeSketch smiles={hoveredMolecule.smiles} size={64} />
+                    <MoleculeSketch smiles={hoveredMolecule.smiles} name={hoveredMolecule.name} cid={(hoveredMolecule as any).cid} size={64} />
                   </div>
                   <div>
                     <p className="font-semibold text-foreground">{hoveredMolecule.name}</p>
