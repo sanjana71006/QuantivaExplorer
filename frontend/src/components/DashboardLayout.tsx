@@ -5,6 +5,55 @@ import quantivaLogo from "@/assets/Quantum Explorer Logo.png";
 import { Button } from "@/components/ui/button";
 import ThemeSelector from "@/components/ThemeSelector";
 import { cn } from "@/lib/utils";
+import { useAuth } from "../context/AuthContext";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { useNavigate } from "react-router-dom";
+
+function ProfileMenu() {
+  const { user, logout } = useAuth();
+  const nav = useNavigate();
+
+  const handleSignOut = () => {
+    logout();
+    nav("/");
+  };
+
+  if (!user) {
+    return (
+      <Link to="/login">
+        <Button variant="ghost" size="sm">Sign in</Button>
+      </Link>
+    );
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="flex items-center gap-2">
+          <Avatar>
+            <AvatarImage src="/" alt={user.name || "User"} />
+            <AvatarFallback>{(user.name || "?").slice(0,1)}</AvatarFallback>
+          </Avatar>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuLabel>Signed in as</DropdownMenuLabel>
+        <div className="px-2 py-1 text-sm font-semibold">{user.name}</div>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => nav('/dashboard/settings')}>Settings</DropdownMenuItem>
+        <DropdownMenuItem onSelect={handleSignOut}>Sign out</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 const navItems = [
   { title: "Dataset Selector", path: "/dashboard", icon: Database },
@@ -88,6 +137,7 @@ const DashboardLayout = () => {
               Quantiva Explorer — Autonomous Drug Hunter
             </h1>
           </div>
+
           <div className="flex items-center gap-3">
             <Link to="/">
               <Button
@@ -101,8 +151,8 @@ const DashboardLayout = () => {
               </Button>
             </Link>
             <ThemeSelector />
-            <div className="w-9 h-9 rounded-full gradient-primary flex items-center justify-center">
-              <User className="h-4 w-4 text-primary-foreground" />
+            <div>
+              <ProfileMenu />
             </div>
           </div>
         </header>

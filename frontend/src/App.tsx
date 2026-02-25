@@ -5,6 +5,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "./context/ThemeContext";
+import { AuthProvider } from "./context/AuthContext";
+import ProtectedRoute from "./components/ProtectedRoute";
 import { GlobalExplorationProvider } from "./context/GlobalExplorationContext";
 import { useSettings } from "./hooks/useSettings";
 import Landing from "./pages/Landing";
@@ -18,6 +20,8 @@ import Results from "./pages/Results";
 import DashboardSettings from "./pages/DashboardSettings";
 import NotFound from "./pages/NotFound";
 import QuantivaAssistant from "./components/QuantivaAssistant";
+import Login from "@/pages/Login";
+import Signup from "@/pages/Signup";
 
 const queryClient = new QueryClient();
 
@@ -66,10 +70,26 @@ function AppContent() {
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
         <Route path="/" element={<Landing />} />
         <Route path="/molecular-portal" element={<MolecularPortal />} />
-        <Route path="/exploration-lab" element={<ExplorationLab />} />
-        <Route path="/dashboard" element={<DashboardLayout />}>
+        <Route
+          path="/exploration-lab"
+          element={
+            <ProtectedRoute>
+              <ExplorationLab />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout />
+            </ProtectedRoute>
+          }
+        >
           <Route index element={<DatasetSelection />} />
           <Route path="simulation" element={<SimulationControls />} />
           <Route path="visualization" element={<Visualization />} />
@@ -90,6 +110,7 @@ function AppContent() {
 const App = () => (
   <ThemeProvider>
     <QueryClientProvider client={queryClient}>
+      <AuthProvider>
       <GlobalExplorationProvider>
         <TooltipProvider>
           <Toaster />
@@ -98,6 +119,7 @@ const App = () => (
           <QuantivaAssistant />
         </TooltipProvider>
       </GlobalExplorationProvider>
+      </AuthProvider>
     </QueryClientProvider>
   </ThemeProvider>
 );
