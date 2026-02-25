@@ -40,7 +40,7 @@ interface ExplorationState {
   comparedMolecules: ExplorationMolecule[];
   visualMode: VisualMode;
   similarityEnabled: boolean;
-  outbreakMode: boolean;
+  attractorIds: string[];
   dataSource: DataSource;
   isLoading: boolean;
   inspectorOpen: boolean;
@@ -58,8 +58,7 @@ interface ExplorationActions {
   clearCompared: () => void;
   clearCompare: () => void;  // alias
   setVisualMode: (mode: VisualMode) => void;
-  toggleSimilarity: () => void;
-  toggleOutbreakMode: () => void;
+  // similarity/outbreak toggles removed
   setDataSource: (source: DataSource) => void;
   setLoading: (loading: boolean) => void;
   setInspectorOpen: (open: boolean) => void;
@@ -67,6 +66,7 @@ interface ExplorationActions {
   openInspector: () => void;
   closeInspector: () => void;
   toggleCompareDrawer: () => void;
+  setAttractorIds: (ids: string[]) => void;
   clearAll: () => void;
 }
 
@@ -81,8 +81,9 @@ export function ExplorationProvider({ children }: { children: ReactNode }) {
   const [selectedMolecule, setSelectedMolecule] = useState<ExplorationMolecule | null>(null);
   const [comparedMolecules, setComparedMolecules] = useState<ExplorationMolecule[]>([]);
   const [visualMode, setVisualModeState] = useState<VisualMode>('galaxy');
-  const [similarityEnabled, setSimilarityEnabled] = useState(false);
-  const [outbreakMode, setOutbreakMode] = useState(false);
+  // Similarity visualization is enabled by default (toggle removed)
+  const [similarityEnabled, setSimilarityEnabled] = useState(true);
+  const [attractorIds, setAttractorIdsState] = useState<string[]>([]);
   const [dataSource, setDataSourceState] = useState<DataSource>('local');
   const [isLoading, setIsLoading] = useState(false);
   const [inspectorOpen, setInspectorOpenState] = useState(false);
@@ -142,13 +143,7 @@ export function ExplorationProvider({ children }: { children: ReactNode }) {
     setVisualModeState(mode);
   }, []);
 
-  const toggleSimilarity = useCallback(() => {
-    setSimilarityEnabled(prev => !prev);
-  }, []);
-
-  const toggleOutbreakMode = useCallback(() => {
-    setOutbreakMode(prev => !prev);
-  }, []);
+  // similarity and outbreak toggles removed — similarity stays enabled by default
 
   const setDataSource = useCallback((source: DataSource) => {
     setDataSourceState(source);
@@ -174,8 +169,14 @@ export function ExplorationProvider({ children }: { children: ReactNode }) {
     setInspectorOpenState(false);
   }, []);
 
+  // attractorIds are managed externally; no automatic outbreak-mode computation here
+
   const toggleCompareDrawer = useCallback(() => {
     setCompareDrawerOpenState(prev => !prev);
+  }, []);
+
+  const setAttractorIds = useCallback((ids: string[]) => {
+    setAttractorIdsState(ids);
   }, []);
 
   const clearCompare = useCallback(() => {
@@ -197,7 +198,7 @@ export function ExplorationProvider({ children }: { children: ReactNode }) {
     comparedMolecules,
     visualMode,
     similarityEnabled,
-    outbreakMode,
+    attractorIds,
     dataSource,
     isLoading,
     inspectorOpen,
@@ -212,23 +213,22 @@ export function ExplorationProvider({ children }: { children: ReactNode }) {
     clearCompared,
     clearCompare,
     setVisualMode,
-    toggleSimilarity,
-    toggleOutbreakMode,
     setDataSource,
     setLoading,
     setInspectorOpen,
     setCompareDrawerOpen,
     openInspector,
     closeInspector,
+    setAttractorIds,
     toggleCompareDrawer,
     clearAll,
   }), [
     molecules, selectedMolecule, comparedMolecules, visualMode,
-    similarityEnabled, outbreakMode, dataSource, isLoading,
+    similarityEnabled, attractorIds, dataSource, isLoading,
     inspectorOpen, compareDrawerOpen, setMolecules, addMolecule,
     addMolecules, removeMolecule, selectMolecule, addToCompare,
-    removeFromCompare, clearCompared, clearCompare, setVisualMode, toggleSimilarity,
-    toggleOutbreakMode, setDataSource, setLoading, setInspectorOpen,
+    removeFromCompare, clearCompared, clearCompare, setVisualMode,
+    setDataSource, setLoading, setInspectorOpen,
     setCompareDrawerOpen, openInspector, closeInspector, toggleCompareDrawer, clearAll,
   ]);
 

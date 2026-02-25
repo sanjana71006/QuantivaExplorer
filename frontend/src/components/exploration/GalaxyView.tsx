@@ -6,7 +6,7 @@ import { useExploration, ExplorationMolecule } from '@/context/ExplorationContex
 import ErrorBoundary from '@/components/ErrorBoundary';
 
 function InstancedMolecules() {
-  const { molecules, selectedMolecule, selectMolecule, outbreakMode } = useExploration();
+  const { molecules, selectedMolecule, selectMolecule } = useExploration();
   const meshRef = useRef<THREE.InstancedMesh | null>(null);
   const tempMat = useMemo(() => new THREE.Object3D(), []);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
@@ -150,6 +150,30 @@ function InstancedMolecules() {
 }
 
 export default function GalaxyView() {
+  const { molecules, selectMolecule } = useExploration();
+  const [legendOpen, setLegendOpen] = useState(false);
+  const [detailsBin, setDetailsBin] = useState<'low' | 'mid' | 'high' | null>(null);
+
+  const bins = useMemo(() => {
+    const low: any[] = [];
+    const mid: any[] = [];
+    const high: any[] = [];
+    for (const m of molecules) {
+      if (m.probability <= 0.33) low.push(m);
+      else if (m.probability <= 0.66) mid.push(m);
+      else high.push(m);
+    }
+    return { low, mid, high };
+  }, [molecules]);
+
+  const openTopInBin = (bin: 'low' | 'mid' | 'high') => {
+    const list = bins[bin];
+    if (!list || list.length === 0) return;
+    // sort by probability desc
+    const top = [...list].sort((a, b) => b.probability - a.probability)[0];
+    if (top) selectMolecule(top);
+  };
+
   return (
     <div className="w-full h-[600px] rounded-xl overflow-hidden border border-border bg-gradient-to-b from-slate-900 to-slate-950 relative">
       <ErrorBoundary>
@@ -182,15 +206,67 @@ export default function GalaxyView() {
         </Canvas>
       </ErrorBoundary>
 
-      {/* Legend */}
-      <div className="absolute bottom-4 left-4 bg-card/90 backdrop-blur-sm border border-border rounded-lg p-3 text-xs">
-        <p className="font-semibold mb-2">Color Legend</p>
-        <div className="flex items-center gap-2">
-          <div className="w-12 h-3 rounded" style={{ background: 'linear-gradient(90deg, #8b5cf6, #06b6d4, #eab308)' }} />
-          <span className="text-muted-foreground">Probability →</span>
+      {/* Legend (expandable) */}
+      <div className="absolute bottom-4 left-4 bg-card/90 backdrop-blur-sm border border-border rounded-lg p-3 text-xs transition-all duration-200" style={{ minWidth: 220 }}>
+        <div className="flex items-center justify-between">
+          <p className="font-semibold">Legend</p>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setLegendOpen(s => !s)} className="text-[11px] text-primary px-2 py-1 rounded hover:bg-violet-50">{legendOpen ? 'Close' : 'Open'}</button>
+          </div>
         </div>
-        <p className="mt-2 text-muted-foreground">Size = Drug-likeness</p>
-        <p className="text-muted-foreground">Glow = Confidence</p>
+
+        <div className={`${legendOpen ? 'mt-3 block' : 'mt-2'}`}>
+          <div className="flex items-center gap-2">
+            <div className="w-36 h-3 rounded" style={{ background: 'linear-gradient(90deg, #8b5cf6, #06b6d4, #eab308)' }} />
+            <span className="text-muted-foreground text-[12px]">Probability →</span>
+          </div>
+
+          <div className="mt-2 grid grid-cols-3 gap-2 text-[12px]">
+            <button onClick={() => openTopInBin('low')} className="flex flex-col items-center gap-1">
+              <div className="w-6 h-3 rounded" style={{ background: '#7c3aed' }} />
+              <span className="text-muted-foreground">Low</span>
+              <span className="text-xs text-muted-foreground/70">{bins.low.length}</span>
+            </button>
+            <button onClick={() => openTopInBin('mid')} className="flex flex-col items-center gap-1">
+              <div className="w-6 h-3 rounded" style={{ background: '#06b6d4' }} />
+              <span className="text-muted-foreground">Mid</span>
+              <span className="text-xs text-muted-foreground/70">{bins.mid.length}</span>
+            </button>
+            <button onClick={() => openTopInBin('high')} className="flex flex-col items-center gap-1">
+              <div className="w-6 h-3 rounded" style={{ background: '#eab308' }} />
+              <span className="text-muted-foreground">High</span>
+              <span className="text-xs text-muted-foreground/70">{bins.high.length}</span>
+            </button>
+          </div>
+
+          <p className="mt-3 text-muted-foreground">Size = Drug-likeness • Glow = Confidence</p>
+
+          {legendOpen && (
+            <div className="mt-3 border-t border-border pt-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">Details</p>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setDetailsBin(null)} className="text-xs text-muted-foreground px-2 py-0.5 rounded hover:bg-violet-50">All</button>
+                  <button onClick={() => setDetailsBin('low')} className="text-xs text-muted-foreground px-2 py-0.5 rounded hover:bg-violet-50">Low</button>
+                  <button onClick={() => setDetailsBin('mid')} className="text-xs text-muted-foreground px-2 py-0.5 rounded hover:bg-violet-50">Mid</button>
+                  <button onClick={() => setDetailsBin('high')} className="text-xs text-muted-foreground px-2 py-0.5 rounded hover:bg-violet-50">High</button>
+                </div>
+              </div>
+
+              <div className="mt-2 max-h-36 overflow-y-auto">
+                {(detailsBin === null ? molecules : bins[detailsBin]).slice(0, 8).map((m: any) => (
+                  <div key={m.id} className="flex items-center justify-between py-1 px-1 rounded hover:bg-muted/20">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded" style={{ background: `hsl(${280 - Math.max(0, Math.min(1, m.probability)) * 240}, 90%, ${60 + Math.max(0, Math.min(1, m.probability)) * 25}%)` }} />
+                      <button onClick={() => selectMolecule(m)} className="text-xs text-foreground truncate text-left max-w-[140px]">{m.name}</button>
+                    </div>
+                    <div className="text-xs text-muted-foreground">{(m.probability*100).toFixed(0)}%</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

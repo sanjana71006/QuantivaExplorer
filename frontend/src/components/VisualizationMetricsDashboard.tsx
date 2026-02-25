@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Layers, GitBranch, Sparkles, Activity } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useGlobalExploration } from '@/context/GlobalExplorationContext';
+import MetricTooltip from '@/components/MetricTooltip';
 
 export default function VisualizationMetricsDashboard() {
   const { scoredResults, diversityMetrics, probabilityHistory, diffusionEnabled } = useGlobalExploration();
@@ -68,7 +69,7 @@ export default function VisualizationMetricsDashboard() {
             <Layers className="h-3 w-3 text-primary" />
           </div>
           <p className="text-lg font-bold text-foreground">{diversityMetrics.diversityScore.toFixed(2)}</p>
-          <p className="text-[10px] text-muted-foreground">Diversity Index</p>
+          <p className="text-[10px] text-muted-foreground flex items-center justify-center gap-0.5">Diversity Index <MetricTooltip metric="diversity" /></p>
           <Badge 
             variant="outline" 
             className={`text-[9px] mt-1 ${
@@ -87,13 +88,13 @@ export default function VisualizationMetricsDashboard() {
             <GitBranch className="h-3 w-3 text-primary" />
           </div>
           <p className="text-lg font-bold text-foreground">{diversityMetrics.clusterEstimate}</p>
-          <p className="text-[10px] text-muted-foreground">Est. Clusters</p>
+          <p className="text-[10px] text-muted-foreground flex items-center justify-center gap-0.5">Est. Clusters <MetricTooltip metric="clusters" /></p>
         </div>
 
         {/* Chemical Space Coverage */}
         <div className="bg-muted/30 rounded-lg p-2.5 text-center">
           <p className="text-lg font-bold text-foreground">{(diversityMetrics.chemicalSpaceCoverage * 100).toFixed(0)}%</p>
-          <p className="text-[10px] text-muted-foreground">Space Coverage</p>
+          <p className="text-[10px] text-muted-foreground flex items-center justify-center gap-0.5">Space Coverage <MetricTooltip metric="coverage" /></p>
           <div className="mt-1 h-1 bg-muted rounded-full overflow-hidden">
             <motion.div 
               className="h-full bg-primary"
@@ -109,7 +110,7 @@ export default function VisualizationMetricsDashboard() {
             <Activity className="h-3 w-3 text-primary" />
           </div>
           <p className="text-lg font-bold text-foreground">{(metrics.uniformity * 100).toFixed(0)}%</p>
-          <p className="text-[10px] text-muted-foreground">Prob. Uniformity</p>
+          <p className="text-[10px] text-muted-foreground flex items-center justify-center gap-0.5">Prob. Uniformity <MetricTooltip metric="uniformity" /></p>
         </div>
 
         {/* Quantum Diffusion Effect */}
@@ -117,7 +118,7 @@ export default function VisualizationMetricsDashboard() {
           <p className="text-lg font-bold text-foreground">
             {diffusionEnabled ? `${(metrics.diffusionShift * 100).toFixed(1)}%` : '—'}
           </p>
-          <p className="text-[10px] text-muted-foreground">QW Shift</p>
+          <p className="text-[10px] text-muted-foreground flex items-center justify-center gap-0.5">QW Shift <MetricTooltip metric="qwShift" /></p>
           {diffusionEnabled && (
             <Badge variant="outline" className="text-[9px] mt-1 border-primary/50 text-primary">
               Active

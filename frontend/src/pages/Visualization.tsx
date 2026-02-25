@@ -1,12 +1,12 @@
-import { useState, useMemo, Suspense, useEffect, lazy } from "react";
+import { useState, useMemo, Suspense, useEffect, useCallback, lazy } from "react";
 import { Switch } from "@/components/ui/switch";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Atom, Maximize2, Zap } from "lucide-react";
+import { Loader2, Atom, Maximize2, Zap, ChevronDown, ChevronUp } from "lucide-react";
 import { scoreMolecules, quantumWalk, defaultWeights } from "@/lib/quantumEngine";
 import { explainMolecule } from "@/lib/aiExplainer";
 import { useLiveMolecules } from "@/hooks/useLiveMolecules";
@@ -16,6 +16,9 @@ import DataSourceBadge from "@/components/DataSourceBadge";
 import VisualizationMetricsDashboard from "@/components/VisualizationMetricsDashboard";
 import ProbabilityEvolutionReplay from "@/components/ProbabilityEvolutionReplay";
 import DiversityWarningBanner from "@/components/DiversityWarningBanner";
+import InsightBanner from "@/components/InsightBanner";
+import ActionPanel from "@/components/ActionPanel";
+import ConfidenceIndicator from "@/components/ConfidenceIndicator";
 import EducationModeToggle from "@/components/education/EducationModeToggle";
 import SimulationStepExplainer from "@/components/education/SimulationStepExplainer";
 import EducationModeLayer from "@/components/education/EducationModeLayer";
@@ -66,11 +69,14 @@ const Visualization = () => {
 
   // Local visualization-specific state
   const [visualMode, setVisualMode] = useState<"galaxy" | "cluster" | "network" | "split">("galaxy");
-  const [outbreakMode, setOutbreakMode] = useState<boolean>(false);
   const [show3D, setShow3D] = useState(true);
   const [attractorIds, setAttractorIds] = useState<string[]>([]);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searchSource, setSearchSource] = useState<string | null>(null);
+  const [scatterExpanded, setScatterExpanded] = useState(true);
+  const [heatmapExpanded, setHeatmapExpanded] = useState(true);
+  const [activeAction, setActiveAction] = useState<string | null>(null);
+  const [actionFilteredMolecules, setActionFilteredMolecules] = useState<ScoredMolecule[] | null>(null);
 
   // Convert remote search items into Molecule shape and score them
   const liveSearchMolecules = useMemo(() => {
@@ -184,15 +190,7 @@ const Visualization = () => {
     return explainMolecule(selectedMolecule, weights);
   }, [selectedMolecule, weights]);
 
-  // When outbreakMode is toggled on, compute top-5 attractors and set them
-  useEffect(() => {
-    if (outbreakMode) {
-      const top = scored.slice(0, 5).map((s) => s.molecule_id).filter(Boolean) as string[];
-      setAttractorIds(top);
-    } else {
-      setAttractorIds([]);
-    }
-  }, [outbreakMode, scored]);
+  // Attractor IDs are managed by context or manually — outbreak toggle removed
 
   // Scatter data (limit to 200 for recharts performance)
   const scatterData = useMemo(() => filtered.slice(0, 200), [filtered]);
@@ -210,13 +208,111 @@ const Visualization = () => {
     return Array.from(map.values()).slice(0, 500);
   }, [liveSearchMolecules, filtered]);
 
+  // ── Auto-focus: find densest cluster centroid ──
+  const autoFocusTarget = useMemo(() => {
+    if (!displayedMolecules.length) return null;
+    // Simple grid-based density estimation in PCA space
+    const cellSize = 2;
+    const grid = new Map<string, { sum: [number, number, number]; count: number }>();
+    for (const m of displayedMolecules) {
+      const x = Number(m.pca_x ?? 0);
+      const y = Number(m.pca_y ?? 0);
+      const z = Number(m.pca_z ?? 0);
+      const key = `${Math.floor(x / cellSize)}_${Math.floor(y / cellSize)}_${Math.floor(z / cellSize)}`;
+      const cell = grid.get(key) ?? { sum: [0, 0, 0] as [number, number, number], count: 0 };
+      cell.sum[0] += x;
+      cell.sum[1] += y;
+      cell.sum[2] += z;
+      cell.count++;
+      grid.set(key, cell);
+    }
+    let best = { x: 0, y: 0, z: 0, count: 0 };
+    grid.forEach((v) => {
+      if (v.count > best.count) {
+        best = {
+          x: v.sum[0] / v.count,
+          y: v.sum[1] / v.count,
+          z: v.sum[2] / v.count,
+          count: v.count,
+        };
+      }
+    });
+    // Normalize to the same coordinate system as ChemicalUniverse3D
+    // Use a rough scale factor (match the 8.0 scale used inside the 3D component)
+    if (best.count < 3) return null;
+    return { x: best.x * 0.8, y: best.y * 0.8, z: best.z * 0.8 };
+  }, [displayedMolecules]);
+
+  // ── Outlier detection: high-score + low density, high-tox + high-efficacy, Lipinski violations in top 10 ──
+  const outlierIds = useMemo(() => {
+    const ids = new Set<string>();
+    const top10 = scored.slice(0, 10);
+    // Lipinski violations in top 10
+    top10.forEach((m) => {
+      const mw = Number(m.molecular_weight ?? 0);
+      const logP = Number(m.logP ?? 0);
+      const donors = Number((m as any).h_bond_donors ?? 0);
+      const acceptors = Number((m as any).h_bond_acceptors ?? 0);
+      if (mw > 500 || logP > 5 || donors > 5 || acceptors > 10) {
+        ids.add(m.molecule_id);
+      }
+    });
+    // High toxicity + high efficacy
+    scored.forEach((m) => {
+      if ((m.toxicity_risk ?? 0) > 0.6 && (m.efficacy_index ?? 0) > 0.6) {
+        ids.add(m.molecule_id);
+      }
+    });
+    // High score + isolated (top quartile score, bottom quartile density approximation)
+    const topQScore = scored.length > 4 ? scored[Math.floor(scored.length * 0.25)].weighted_score : 0;
+    scored.forEach((m) => {
+      if (m.weighted_score >= topQScore && (m.drug_likeness_score ?? 0) < 0.3) {
+        ids.add(m.molecule_id);
+      }
+    });
+    return Array.from(ids);
+  }, [scored]);
+
+  // ── Action panel handlers ──
+  const handleFocusTopCluster = useCallback(() => {
+    setActiveAction("top-cluster");
+    // Auto-focus is already active; just indicate selection
+  }, []);
+
+  const handleHighRiskHighReward = useCallback(() => {
+    setActiveAction("high-risk");
+    const hrhr = scored.filter((m) => m.weighted_score >= 0.6 && (m.toxicity_risk ?? 0) > 0.4);
+    if (hrhr.length > 0) selectMolecule(hrhr[0]);
+  }, [scored, selectMolecule]);
+
+  const handleLipinskiViolations = useCallback(() => {
+    setActiveAction("lipinski");
+    const violations = scored.filter((m) => {
+      const mw = Number(m.molecular_weight ?? 0);
+      const logP = Number(m.logP ?? 0);
+      return mw > 500 || logP > 5;
+    });
+    if (violations.length > 0) selectMolecule(violations[0]);
+  }, [scored, selectMolecule]);
+
+  const handleSafeZone = useCallback(() => {
+    setActiveAction("safe-zone");
+    const safe = scored.filter((m) => m.weighted_score >= 0.5 && (m.toxicity_risk ?? 0) < 0.3);
+    if (safe.length > 0) selectMolecule(safe[0]);
+  }, [scored, selectMolecule]);
+
+  const handleResetAction = useCallback(() => {
+    setActiveAction(null);
+  }, []);
+
   // small wrapper component rendered near top-right to show API status
   function LiveApiStatus() {
     return <ApiStatusBadge status={liveStatus} source={liveSource} lastUpdated={lastUpdated} />;
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
+      {/* ── Page Header ── */}
       <div>
         <h2 className="font-display text-2xl font-bold text-foreground mb-1">Visualization</h2>
         <p className="text-muted-foreground text-sm">Explore molecular clusters, probability distributions, and the 3D chemical universe.</p>
@@ -224,34 +320,37 @@ const Visualization = () => {
 
       {isLoadingDataset && <p className="text-sm text-muted-foreground">Loading dataset...</p>}
 
-      {/* Visualization Metrics Dashboard */}
-      <VisualizationMetricsDashboard />
+      {/* ── Metrics Dashboard + Confidence ── */}
+      <div className="grid lg:grid-cols-[1fr_280px] gap-4">
+        <VisualizationMetricsDashboard />
+        <ConfidenceIndicator
+          scoredResults={scored}
+          diversityMetrics={diversityMetrics}
+          probabilityHistory={probabilityHistory}
+        />
+      </div>
 
-      {/* Diversity Warning Banner */}
+      {/* ── Diversity Warning + Insight Banner ── */}
       <DiversityWarningBanner />
+      <InsightBanner scoredResults={scored} diversityMetrics={diversityMetrics} />
 
-      {/* Probability Evolution Replay */}
+      {/* ── Probability Evolution Replay ── */}
       <ProbabilityEvolutionReplay />
 
       {/* Live sync notification */}
-      <div className="flex items-center gap-2 text-xs text-muted-foreground bg-primary/10 rounded-lg p-3">
-        <Zap className="h-4 w-4 text-primary" />
+      <div className="flex items-center gap-2 text-xs text-muted-foreground bg-primary/10 rounded-lg p-2.5">
+        <Zap className="h-3.5 w-3.5 text-primary" />
         <span>Visualization is synchronized with Simulation settings. Changes update in real-time.</span>
+        <div className="ml-auto"><LiveApiStatus /></div>
       </div>
 
-      {/* Live API status */}
-      <div className="flex items-center justify-end">
-        <LiveApiStatus />
-      </div>
-
-      {/* Search bar + source badge */}
+      {/* ── Search bar + source badge ── */}
       <div className="glass-card p-4 flex items-center gap-4">
         <div className="flex-1">
           <SearchBar
             onResults={(items, source) => {
               setSearchResults(items || []);
               setSearchSource(String(source || 'local'));
-              // auto-select first result if present
               if (Array.isArray(items) && items.length > 0) {
                 const first = items[0];
                 const candidate = {
@@ -274,7 +373,6 @@ const Visualization = () => {
         <div className="glass-card p-4">
           <div className="flex items-start gap-4">
             <div className="w-36 h-36 bg-white rounded shadow flex items-center justify-center">
-              {/* 2D image from PubChem if available */}
               <img src={searchResults[0].image_url || `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${searchResults[0].id}/PNG`} alt={searchResults[0].name || 'molecule'} className="max-w-full max-h-full" />
             </div>
             <div className="flex-1">
@@ -285,7 +383,6 @@ const Visualization = () => {
                 </div>
                 <DataSourceBadge source={searchSource} />
               </div>
-
               <div className="mt-3 grid grid-cols-2 gap-3">
                 <div>
                   <div className="text-xs text-muted-foreground">Molecular Weight</div>
@@ -304,10 +401,8 @@ const Visualization = () => {
                   <div className="font-medium">{searchResults[0].h_acceptors ?? '—'}</div>
                 </div>
               </div>
-
               <div className="mt-4">
                 <button className="btn btn-sm btn-primary" onClick={() => {
-                  // add first result into 3D view by updating selectedMol and ensuring liveSearchMolecules present
                   const it = searchResults[0];
                   const candidate = {
                     molecule_id: String(it.id || it.CID || 'r1'),
@@ -324,7 +419,7 @@ const Visualization = () => {
         </div>
       )}
 
-      {/* Controls */}
+      {/* ── Controls Bar ── */}
       <div className="glass-card p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
         <Label className="text-sm text-muted-foreground whitespace-nowrap">Score Threshold</Label>
         <Slider
@@ -361,61 +456,76 @@ const Visualization = () => {
               <SelectItem value="split">Classical vs Quantum (Split)</SelectItem>
             </SelectContent>
           </Select>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Outbreak Mode</span>
-            <Switch checked={outbreakMode} onCheckedChange={(v) => setOutbreakMode(Boolean(v))} />
-          </div>
+          {/* Outbreak toggle removed */}
           <div className="border-l border-border mx-2 h-6" />
           <EducationModeToggle />
         </div>
       </div>
 
+      {/* ══════════════════════════════════════════ */}
+      {/* ── 3D Chemical Universe  (dominant)     ── */}
+      {/* ══════════════════════════════════════════ */}
+
       {visualMode !== "split" ? (
         <>
-          {/* 3D Chemical Universe */}
           {show3D && (
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-4">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-4 relative">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-display font-semibold text-foreground flex items-center gap-2">
                   <Atom className="h-4 w-4 text-primary" />
                   3D Chemical Universe
                 </h3>
-                <p className="text-xs text-muted-foreground">Drag to rotate • Scroll to zoom • Click molecule to inspect</p>
+                <p className="text-xs text-muted-foreground">Drag to rotate &bull; Scroll to zoom &bull; Click molecule to inspect</p>
               </div>
-              <div className="h-[450px]">
+              <div className="h-[560px] relative">
                 <Suspense fallback={<div className="h-full flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
                   <ChemicalUniverse3D
-                        molecules={displayedMolecules}
+                    molecules={displayedMolecules}
                     onSelectMolecule={selectMolecule}
                     selectedMoleculeId={selectedMolecule?.molecule_id || null}
                     attractorIds={attractorIds}
-                    outbreak={outbreakMode}
+                    outbreak={false}
+                    autoFocusTarget={autoFocusTarget}
+                    autoFocusLabel="Primary Candidate Region"
+                    outlierIds={outlierIds}
                   />
                 </Suspense>
+
+
               </div>
             </motion.div>
           )}
-
-          {/* Probability Flow Map removed */}
         </>
       ) : (
-        <div className="grid lg:grid-cols-2 gap-4 divide-x divide-border">
+        /* ── Classical vs Quantum Split View ── */
+        <div className="grid lg:grid-cols-2 gap-4">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-4">
-            <h3 className="font-display font-semibold text-foreground mb-3">Classical View (Left)</h3>
-            <div style={{ height: 360 }}>
-              <ResponsiveContainer width="100%" height={320}>
+            <h3 className="font-display font-semibold text-foreground mb-3 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-blue-500" />
+              Classical View — Molecular Properties
+            </h3>
+            <div style={{ height: 400 }}>
+              <ResponsiveContainer width="100%" height={360}>
                 <ScatterChart margin={{ top: 10, right: 10, bottom: 20, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 20%, 18%)" />
                   <XAxis dataKey="molecular_weight" name="MW" type="number" />
                   <YAxis dataKey="logP" name="LogP" type="number" />
-                  <Scatter data={scatterData} onClick={(d: any) => d && selectMolecule(d)} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Scatter data={scatterData} cursor="pointer" onClick={(d: any) => d && selectMolecule(d)}>
+                    {scatterData.map((entry, i) => (
+                      <Cell key={i} fill={diseaseColors[entry.disease_target] || diseaseColors.unknown} fillOpacity={0.7} r={4 + entry.drug_likeness_score * 8} />
+                    ))}
+                  </Scatter>
                 </ScatterChart>
               </ResponsiveContainer>
             </div>
           </motion.div>
 
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-4">
-            <h3 className="font-display font-semibold text-foreground mb-3">Quantum View (Right)</h3>
+            <h3 className="font-display font-semibold text-foreground mb-3 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-violet-500" />
+              Quantum View — Diffusion Landscape
+            </h3>
             <div className="h-[420px]">
               <Suspense fallback={<div className="h-full flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
                 <ChemicalUniverse3D
@@ -423,88 +533,124 @@ const Visualization = () => {
                   onSelectMolecule={selectMolecule}
                   selectedMoleculeId={selectedMolecule?.molecule_id || null}
                   attractorIds={attractorIds}
-                  outbreak={outbreakMode}
+                  outbreak={false}
+                  outlierIds={outlierIds}
                 />
               </Suspense>
-              {/* Probability Flow Map removed */}
             </div>
           </motion.div>
         </div>
       )}
 
+      {/* ══════════════════════════════════════════ */}
+      {/* ── Collapsible Secondary Charts          ── */}
+      {/* ══════════════════════════════════════════ */}
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* Scatter Plot */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-6">
-          <h3 className="font-display font-semibold text-foreground mb-4">Molecular Property Scatter</h3>
-          <ResponsiveContainer width="100%" height={320}>
-            <ScatterChart margin={{ top: 10, right: 10, bottom: 20, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 20%, 18%)" />
-              <XAxis dataKey="molecular_weight" name="MW" type="number" tick={{ fill: "hsl(215, 20%, 55%)", fontSize: 12 }} axisLine={{ stroke: "hsl(222, 20%, 18%)" }} label={{ value: "Molecular Weight", position: "bottom", fill: "hsl(215, 20%, 55%)", fontSize: 12 }} />
-              <YAxis dataKey="logP" name="LogP" type="number" tick={{ fill: "hsl(215, 20%, 55%)", fontSize: 12 }} axisLine={{ stroke: "hsl(222, 20%, 18%)" }} label={{ value: "LogP", angle: -90, position: "insideLeft", fill: "hsl(215, 20%, 55%)", fontSize: 12 }} />
-              <Tooltip content={<CustomTooltip />} />
-              <Scatter data={scatterData} cursor="pointer" onClick={(d: any) => d && selectMolecule(d)}>
-                {scatterData.map((entry, i) => (
-                  <Cell key={i} fill={diseaseColors[entry.disease_target] || diseaseColors.unknown} fillOpacity={0.7} r={4 + entry.drug_likeness_score * 8} />
-                ))}
-              </Scatter>
-            </ScatterChart>
-          </ResponsiveContainer>
+        {/* ── Scatter Plot (Collapsible) ── */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card overflow-hidden">
+          <button
+            onClick={() => setScatterExpanded((v) => !v)}
+            className="w-full flex items-center justify-between p-4 hover:bg-muted/20 transition"
+          >
+            <h3 className="font-display font-semibold text-foreground text-sm">Molecular Property Scatter</h3>
+            {scatterExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          </button>
+          <AnimatePresence initial={false}>
+            {scatterExpanded && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.25 }}
+                className="px-6 pb-6"
+              >
+                <ResponsiveContainer width="100%" height={320}>
+                  <ScatterChart margin={{ top: 10, right: 10, bottom: 20, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 20%, 18%)" />
+                    <XAxis dataKey="molecular_weight" name="MW" type="number" tick={{ fill: "hsl(215, 20%, 55%)", fontSize: 12 }} axisLine={{ stroke: "hsl(222, 20%, 18%)" }} label={{ value: "Molecular Weight", position: "bottom", fill: "hsl(215, 20%, 55%)", fontSize: 12 }} />
+                    <YAxis dataKey="logP" name="LogP" type="number" tick={{ fill: "hsl(215, 20%, 55%)", fontSize: 12 }} axisLine={{ stroke: "hsl(222, 20%, 18%)" }} label={{ value: "LogP", angle: -90, position: "insideLeft", fill: "hsl(215, 20%, 55%)", fontSize: 12 }} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Scatter data={scatterData} cursor="pointer" onClick={(d: any) => d && selectMolecule(d)}>
+                      {scatterData.map((entry, i) => (
+                        <Cell key={i} fill={diseaseColors[entry.disease_target] || diseaseColors.unknown} fillOpacity={0.7} r={4 + entry.drug_likeness_score * 8} />
+                      ))}
+                    </Scatter>
+                  </ScatterChart>
+                </ResponsiveContainer>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
 
-        {/* Quantum Probability Heatmap (hidden in split mode to avoid visual merging) */}
+        {/* ── Quantum Probability Heatmap (Collapsible) ── */}
         {visualMode !== "split" && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card p-6">
-            <h3 className="font-display font-semibold text-foreground mb-2">Quantum Probability Heatmap</h3>
-            <p className="text-xs text-muted-foreground mb-3">Top {heatmapSize} candidates (by weighted score). Hover tiles to see molecule name and probability.</p>
-            <div className="grid grid-cols-10 gap-1">
-              {heatmapData.map((cell, i) => {
-                const absProb = cell.value; // absolute probability
-                const norm = absProb / maxHeat; // 0..1 intensity
-                const mol = cell.molecule;
-                const percent = (absProb * 100).toFixed(2);
-                const bg = getHeatColor(norm);
-                const isTop5 = cell.index < 5;
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card overflow-hidden">
+            <button
+              onClick={() => setHeatmapExpanded((v) => !v)}
+              className="w-full flex items-center justify-between p-4 hover:bg-muted/20 transition"
+            >
+              <h3 className="font-display font-semibold text-foreground text-sm">Quantum Probability Heatmap</h3>
+              {heatmapExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+            </button>
+            <AnimatePresence initial={false}>
+              {heatmapExpanded && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="px-6 pb-6"
+                >
+                  <p className="text-xs text-muted-foreground mb-3">Top {heatmapSize} candidates (by weighted score). Hover tiles to see molecule name and probability.</p>
+                  <div className="grid grid-cols-10 gap-1">
+                    {heatmapData.map((cell, i) => {
+                      const absProb = cell.value;
+                      const norm = absProb / maxHeat;
+                      const mol = cell.molecule;
+                      const percent = (absProb * 100).toFixed(2);
+                      const bg = getHeatColor(norm);
+                      const isTop5 = cell.index < 5;
 
-                return (
-                  <motion.div
-                    key={i}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: i * 0.003 }}
-                    className={`aspect-square rounded-sm cursor-pointer transition-transform hover:scale-105 relative flex items-center justify-center`}
-                    style={{
-                      background: bg,
-                      boxShadow: isTop5 ? "0 0 0 3px rgba(255,215,102,0.18)" : undefined,
-                      border: isTop5 ? "2px solid rgba(255,215,102,0.9)" : "1px solid rgba(255,255,255,0.06)",
-                      opacity: 0.95,
-                    }}
-                    title={`#${cell.index + 1} ${mol?.name ?? "—"}: ${percent}%`}
-                    onClick={() => mol && selectMolecule(mol)}
-                  >
-                    {/* Show percent label when reasonably visible */}
-                    <div className="text-[10px] font-semibold text-white drop-shadow-sm" style={{ opacity: absProb > 0.0005 ? 1 : 0.0 }}>
-                      {absProb > 0.0005 ? `${percent}%` : ""}
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-
-            {/* Colorbar / legend */}
-            <div className="mt-3 flex items-center gap-3">
-              <div className="flex-1 h-3 rounded overflow-hidden" style={{ background: `linear-gradient(90deg, ${getHeatColor(0)} 0%, ${getHeatColor(0.5)} 50%, ${getHeatColor(1)} 100%)` }} />
-              <div className="text-xs text-muted-foreground w-24 text-right">0%</div>
-              <div className="text-xs text-muted-foreground w-28 text-right">Max: {(maxHeat * 100).toFixed(2)}%</div>
-            </div>
-            <div className="flex justify-between mt-3">
-              <span className="text-xs text-muted-foreground">Low probability</span>
-              <span className="text-xs text-muted-foreground">High probability</span>
-            </div>
+                      return (
+                        <motion.div
+                          key={i}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: i * 0.003 }}
+                          className="aspect-square rounded-sm cursor-pointer transition-transform hover:scale-105 relative flex items-center justify-center"
+                          style={{
+                            background: bg,
+                            boxShadow: isTop5 ? "0 0 0 3px rgba(255,215,102,0.18)" : undefined,
+                            border: isTop5 ? "2px solid rgba(255,215,102,0.9)" : "1px solid rgba(255,255,255,0.06)",
+                            opacity: 0.95,
+                          }}
+                          title={`#${cell.index + 1} ${mol?.name ?? "—"}: ${percent}%`}
+                          onClick={() => mol && selectMolecule(mol)}
+                        >
+                          <div className="text-[10px] font-semibold text-white drop-shadow-sm" style={{ opacity: absProb > 0.0005 ? 1 : 0.0 }}>
+                            {absProb > 0.0005 ? `${percent}%` : ""}
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-3 flex items-center gap-3">
+                    <div className="flex-1 h-3 rounded overflow-hidden" style={{ background: `linear-gradient(90deg, ${getHeatColor(0)} 0%, ${getHeatColor(0.5)} 50%, ${getHeatColor(1)} 100%)` }} />
+                    <div className="text-xs text-muted-foreground w-24 text-right">0%</div>
+                    <div className="text-xs text-muted-foreground w-28 text-right">Max: {(maxHeat * 100).toFixed(2)}%</div>
+                  </div>
+                  <div className="flex justify-between mt-3">
+                    <span className="text-xs text-muted-foreground">Low probability</span>
+                    <span className="text-xs text-muted-foreground">High probability</span>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         )}
       </div>
 
-      {/* AI Explainer Panel */}
+      {/* ── AI Explainer Panel ── */}
       {selectedMolecule && explanation && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-6 border-primary/20">
           <h3 className="font-display font-semibold text-foreground mb-3 flex items-center gap-2">
@@ -549,7 +695,6 @@ const Visualization = () => {
 
           <p className="text-sm text-foreground font-medium">{explanation.verdict}</p>
 
-          {/* Education Mode: Show contribution breakdown */}
           {educationMode.enabled && (
             <div className="mt-6 pt-6 border-t border-border">
               <ContributionHighlighter molecule={selectedMolecule} />

@@ -28,6 +28,7 @@ interface Edge {
 function NetworkGraph() {
   const { molecules, selectedMolecule, selectMolecule } = useExploration();
   const groupRef = useRef<THREE.Group>(null);
+  const { similarityEnabled } = useExploration();
 
   // Compute positions using force-directed-like layout
   const positions = useMemo(() => {
@@ -45,8 +46,9 @@ function NetworkGraph() {
     });
   }, [molecules]);
 
-  // Compute edges based on similarity threshold
+  // Compute edges based on similarity threshold (only when similarityEnabled)
   const edges = useMemo(() => {
+    if (!similarityEnabled) return [] as Edge[];
     const result: Edge[] = [];
     const threshold = 0.7; // Only show edges with similarity > 0.7
     
@@ -64,7 +66,7 @@ function NetworkGraph() {
       }
     }
     return result;
-  }, [molecules, positions]);
+  }, [molecules, positions, similarityEnabled]);
 
   // Animate edges
   useFrame((state) => {

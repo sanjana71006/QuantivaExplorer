@@ -27,13 +27,9 @@ export default function CommandBar() {
     molecules,
     selectedMolecule,
     visualMode,
-    similarityEnabled,
-    outbreakMode,
     dataSource,
     isLoading,
     setVisualMode,
-    toggleSimilarity,
-    toggleOutbreakMode,
     addMolecule,
     addToCompare,
     setLoading,
@@ -107,16 +103,7 @@ export default function CommandBar() {
           Compare
         </Button>
 
-        {/* Toggles */}
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Similarity</span>
-          <Switch checked={similarityEnabled} onCheckedChange={toggleSimilarity} />
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Outbreak</span>
-          <Switch checked={outbreakMode} onCheckedChange={toggleOutbreakMode} />
-        </div>
+        {/* Similarity / Outbreak toggles removed */}
 
         {/* Data Source */}
         <Badge variant="outline" className="px-3 py-1 gap-1">

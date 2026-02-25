@@ -13,6 +13,8 @@ import SimulationSnapshotPanel from "@/components/SimulationSnapshotPanel";
 import ExportScientificReport from "@/components/ExportScientificReport";
 import LipinskiViolationOverlay from "@/components/LipinskiViolationOverlay";
 import DiversityWarningBanner from "@/components/DiversityWarningBanner";
+import Molecule3DViewer from "@/components/Molecule3DViewer";
+import Molecule2DImage from "@/components/Molecule2DImage";
 import { useGlobalExploration } from "@/context/GlobalExplorationContext";
 
 const getProbBadgeClass = (p: number, total: number) => {
@@ -29,6 +31,7 @@ const Results = () => {
   // Local UI state
   const [expanded, setExpanded] = useState<number | null>(null);
   const [modalCandidate, setModalCandidate] = useState<ScoredMolecule | null>(null);
+  const [viewerMode, setViewerMode] = useState<'3d' | '2d' | 'both'>('3d');
   const [showReport, setShowReport] = useState(false);
   const [topN, setTopN] = useState(20);
 
@@ -239,23 +242,55 @@ const Results = () => {
           </DialogHeader>
           {modalCandidate && explanation && (
             <div className="space-y-5">
-              {/* Structure preview from PubChem */}
-              <div className="h-40 rounded-lg bg-white flex items-center justify-center overflow-hidden relative">
-                <img
-                  src={`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${encodeURIComponent(modalCandidate.name)}/PNG?image_size=200x200`}
-                  alt={`${modalCandidate.name} molecular structure`}
-                  className="max-h-36 object-contain"
-                  onError={(e) => {
-                    // Fallback to SMILES-based image
-                    const target = e.target as HTMLImageElement;
-                    if (modalCandidate.smiles && !target.dataset.fallback) {
-                      target.dataset.fallback = 'true';
-                      target.src = `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/smiles/${encodeURIComponent(modalCandidate.smiles)}/PNG?image_size=200x200`;
-                    }
-                  }}
-                />
-                <span className="absolute bottom-2 right-3 text-xs text-muted-foreground bg-white/80 px-1 rounded">{modalCandidate.formula}</span>
+              {/* Viewer mode toggles */}
+              <div className="flex items-center gap-2">
+                <div className="text-sm font-semibold text-foreground">Structure</div>
+                <div className="ml-3 inline-flex rounded-md bg-muted/10 p-0.5">
+                  <button
+                    onClick={() => setViewerMode('3d')}
+                    className={`px-3 py-1 text-xs rounded-md ${viewerMode === '3d' ? 'bg-violet-600 text-white' : 'text-violet-700 hover:bg-violet-50'}`}
+                  >3D</button>
+                  <button
+                    onClick={() => setViewerMode('2d')}
+                    className={`px-3 py-1 text-xs rounded-md ${viewerMode === '2d' ? 'bg-violet-600 text-white' : 'text-violet-700 hover:bg-violet-50'}`}
+                  >2D</button>
+                  <button
+                    onClick={() => setViewerMode('both')}
+                    className={`px-3 py-1 text-xs rounded-md ${viewerMode === 'both' ? 'bg-violet-600 text-white' : 'text-violet-700 hover:bg-violet-50'}`}
+                  >Both</button>
+                </div>
               </div>
+
+              {/* Viewer content */}
+              {viewerMode === 'both' ? (
+                <div className="grid md:grid-cols-[260px_1fr] gap-4 items-start">
+                  <div className="flex flex-col items-center gap-2">
+                    <Molecule2DImage cid={modalCandidate.CID || modalCandidate.cid || modalCandidate.molecule_id} name={modalCandidate.name} smiles={modalCandidate.smiles} size={220} />
+                    {modalCandidate.formula && (
+                      <p className="text-xs text-muted-foreground mt-1">{modalCandidate.formula}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Molecule3DViewer
+                      name={modalCandidate.name}
+                      smiles={modalCandidate.smiles}
+                      cid={modalCandidate.CID || modalCandidate.cid || modalCandidate.molecule_id}
+                      height={320}
+                    />
+                  </div>
+                </div>
+              ) : viewerMode === '3d' ? (
+                <Molecule3DViewer
+                  name={modalCandidate.name}
+                  smiles={modalCandidate.smiles}
+                  cid={modalCandidate.CID || modalCandidate.cid || modalCandidate.molecule_id}
+                  height={420}
+                />
+              ) : (
+                <div className="flex justify-center">
+                  <Molecule2DImage cid={modalCandidate.CID || modalCandidate.cid || modalCandidate.molecule_id} name={modalCandidate.name} smiles={modalCandidate.smiles} size={360} />
+                </div>
+              )}
 
               {/* AI Explanation */}
               <div className="glass-card p-4 border-primary/10">

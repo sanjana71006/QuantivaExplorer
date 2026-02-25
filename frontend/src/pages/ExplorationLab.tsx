@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft } from 'lucide-react';
@@ -24,7 +24,8 @@ const INITIAL_MOLECULES = [
 ];
 
 function ExplorationLabContent() {
-  const { visualMode, addMolecule, molecules, isLoading, setLoading } = useExploration();
+  const { visualMode, addMolecule, molecules, isLoading, setLoading, inspectorOpen } = useExploration();
+  const [inspectorHidden, setInspectorHidden] = useState(false);
 
   // Load initial molecules on mount
   useEffect(() => {
@@ -96,6 +97,15 @@ function ExplorationLabContent() {
                   Back to Dashboard
                 </Button>
               </Link>
+              <div className="ml-auto">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setInspectorHidden(h => !h)}
+                >
+                  {inspectorHidden ? 'Show Inspector' : 'Hide Inspector'}
+                </Button>
+              </div>
             </div>
             <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-primary via-purple-400 to-pink-400 bg-clip-text text-transparent">
               🧪 Exploration Lab
@@ -115,51 +125,61 @@ function ExplorationLabContent() {
             </span>
           </div>
 
-          {/* Dynamic View Renderer */}
-          <motion.div
-            key={visualMode}
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.3 }}
-            className="relative"
-          >
-            {renderView()}
-          </motion.div>
+          {/* Responsive two-column layout: main content + inspector */}
+          <div className="mt-4">
+            <div className="flex flex-col lg:flex-row gap-6 min-h-[60vh]">
+              {/* Main exploration area */}
+              <div className="flex-1 min-w-0 overflow-auto">
+                <motion.div
+                  key={visualMode}
+                  initial={{ opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  {renderView()}
+                </motion.div>
 
-          {/* Help Section */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
-            className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4"
-          >
-            <div className="bg-card border border-border rounded-lg p-4">
-              <h3 className="font-semibold text-sm mb-2">🔍 Search</h3>
-              <p className="text-xs text-muted-foreground">
-                Type any molecule name in the command bar to fetch live data from PubChem. 
-                Click molecules to inspect their properties.
-              </p>
+                {/* Help Section */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.5 }}
+                  className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4"
+                >
+                  <div className="bg-card border border-border rounded-lg p-4">
+                    <h3 className="font-semibold text-sm mb-2">🔍 Search</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Type any molecule name in the command bar to fetch live data from PubChem. 
+                      Click molecules to inspect their properties.
+                    </p>
+                  </div>
+                  <div className="bg-card border border-border rounded-lg p-4">
+                    <h3 className="font-semibold text-sm mb-2">⚗️ Compare</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Add up to 4 molecules to the compare drawer. Use the Compare View mode 
+                      to see radar charts and property breakdowns.
+                    </p>
+                  </div>
+                  <div className="bg-card border border-border rounded-lg p-4">
+                    <h3 className="font-semibold text-sm mb-2">🌐 Similarity Expansion</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Enable similarity mode to auto-fetch structurally similar molecules. 
+                      The Network View shows similarity connections.
+                    </p>
+                  </div>
+                </motion.div>
+              </div>
+
+              {/* Right inspector column */}
+              <div className={`transition-all duration-300 flex-shrink-0 ${inspectorHidden || !inspectorOpen ? 'w-0' : 'w-96'}`}>
+                {/* pass embedded flag so inspector renders as layout panel (non-absolute) */}
+                <MoleculeInspector embedded />
+              </div>
             </div>
-            <div className="bg-card border border-border rounded-lg p-4">
-              <h3 className="font-semibold text-sm mb-2">⚗️ Compare</h3>
-              <p className="text-xs text-muted-foreground">
-                Add up to 4 molecules to the compare drawer. Use the Compare View mode 
-                to see radar charts and property breakdowns.
-              </p>
-            </div>
-            <div className="bg-card border border-border rounded-lg p-4">
-              <h3 className="font-semibold text-sm mb-2">🌐 Similarity Expansion</h3>
-              <p className="text-xs text-muted-foreground">
-                Enable similarity mode to auto-fetch structurally similar molecules. 
-                The Network View shows similarity connections.
-              </p>
-            </div>
-          </motion.div>
+          </div>
+
         </div>
       </main>
-
-      {/* Molecule Inspector Panel */}
-      <MoleculeInspector />
 
       {/* Compare Drawer */}
       <CompareDrawer />
