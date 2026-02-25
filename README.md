@@ -1,4 +1,4 @@
-<img width="1920" height="4177" alt="image" src="https://github.com/user-attachments/assets/7f69150c-c810-423c-a619-169a6e5ac5f2" /># QUANTIVA EXPLORER
+ QUANTIVA EXPLORER
 
 **Team: VORTEX CORE**
 
@@ -13,6 +13,8 @@ QUANTIVA EXPLORER is a quantum‑inspired, visual platform that helps students a
 **VORTEX CORE** — creators of QUANTIVA EXPLORER
 
 ---
+
+<img width="1920" height="4177" alt="image" src="https://github.com/user-attachments/assets/7f69150c-c810-423c-a619-169a6e5ac5f2" />
 
 ## Problem Statement
 Drug discovery requires exploring extremely large molecular spaces to identify promising candidates. Traditional methods treat discovery as a linear filtering pipeline, making it slow, expensive, and difficult to interpret.
@@ -102,54 +104,11 @@ Refer to `backend/server/index.js` for full endpoint details.
 
 ---
 
-## Image insertion examples (Markdown)
-
-Basic single image:
-
-```markdown
-![Landing — Home](<img width="1920" height="4177" alt="image" src="https://github.com/user-attachments/assets/2ba6e64b-84b0-4fff-b42a-292513ad835d" />
-)
-```
-
-Two images side‑by‑side (HTML in Markdown):
-
-```markdown
-<p float="left">
-  <img src="docs/screenshots/landing.png" width="48%" />
-  <img src="docs/screenshots/exploration-3d.png" width="48%" />
-</p>
-```
-
-Image from `frontend/public` (GitHub Pages / raw path):
-
-```markdown
-![Dashboard](/screenshots/dashboard.png)
-```
-
-Tips: use 1280×720 or 1024×640 exports for clarity; keep files under ~500KB for faster repo loads.
-
----
-
-## Screenshots Gallery (template to paste in README)
-
-```markdown
-## Screenshots
-
-![Landing](docs/screenshots/landing.png)
-![Login](docs/screenshots/login.png)
-![Exploration 3D](docs/screenshots/exploration-3d.png)
-```
-
----
-
 ## How to Record a Short GIF of the 3D Viewer
 1. Use a screen recorder like OBS, ShareX, or macOS QuickTime.
 2. Record a 5–8 second interaction of the 3D viewer rotating or highlighting a molecule.
 3. Export as GIF or MP4 (MP4 recommended for quality). Place file in `docs/gifs/` and embed with:
 
-```markdown
-![3D Viewer Demo](docs/gifs/exploration-demo.mp4)
-```
 
 ---
 
