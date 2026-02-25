@@ -1,4 +1,4 @@
-# QUANTIVA EXPLORER
+<img width="1920" height="4177" alt="image" src="https://github.com/user-attachments/assets/7f69150c-c810-423c-a619-169a6e5ac5f2" /># QUANTIVA EXPLORER
 
 **Team: VORTEX CORE**
 
@@ -102,25 +102,13 @@ Refer to `backend/server/index.js` for full endpoint details.
 
 ---
 
-## Recommended Screenshots (what to include in README)
-Place screenshots in `docs/screenshots/` or `frontend/public/screenshots/`. Recommended set:
-
-- `landing.png` — project landing / home page
-- `login.png` — login / signup page with animated background
-- `dashboard-profile.png` — dashboard showing profile menu
-- `exploration-3d.png` — 3D molecule viewer popout
-- `molecule-2d.png` — 2D molecule panel
-- `simulation-history.png` — saved simulation history list
-- `saved-experiments.png` — list of saved experiments
-- `analytics-dashboard.png` — datasets/visualization metrics
-- `search-space-diagram.png` — the problem/context diagram (use the provided attachment image)
-
 ## Image insertion examples (Markdown)
 
 Basic single image:
 
 ```markdown
-![Landing — Home](docs/screenshots/landing.png)
+![Landing — Home](<img width="1920" height="4177" alt="image" src="https://github.com/user-attachments/assets/2ba6e64b-84b0-4fff-b42a-292513ad835d" />
+)
 ```
 
 Two images side‑by‑side (HTML in Markdown):
