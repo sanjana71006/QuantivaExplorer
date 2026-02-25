@@ -5,6 +5,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import quantivaLogo from "@/assets/Quantum Explorer Logo.png";
+import MoleculeBackground from "@/components/MoleculeBackground";
 
 const Signup: React.FC = () => {
   const { signup } = useAuth();
@@ -30,8 +31,11 @@ const Signup: React.FC = () => {
   };
 
   return (
-    <div className="min-h-[70vh] flex items-center justify-center px-4">
-      <Card className="w-full max-w-lg">
+    <div className="min-h-[70vh] flex items-center justify-center px-4 relative">
+      <div className="absolute inset-0 -z-10">
+        <MoleculeBackground />
+      </div>
+      <Card className="w-full max-w-lg relative z-10">
         <CardHeader>
           <div className="flex items-center gap-4">
             <img src={quantivaLogo} alt="Quantiva" className="h-10 w-10 rounded-md" />
