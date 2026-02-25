@@ -1,40 +1,180 @@
-Quantiva Explorer
+# QUANTIVA EXPLORER
 
-Quantiva Explorer is an interactive quantum-inspired molecular exploration system that simulates how drug candidates are discovered, filtered, and ranked within large chemical spaces using probabilistic scoring, real-time visualization, and explainable AI to accelerate candidate selection for research teams.
+**Team: VORTED CORE**
 
-Quick start
+Health‑Tech | Quantum‑Inspired Exploration of Drug Candidate Search Spaces
 
-- Backend:
-  ```bash
-  cd backend
-  npm install
-  npm run dev   # or npm start
-  ```
+---
 
-- Frontend:
-  ```bash
-  cd frontend
-  npm install
-  npm run dev
-  ```
+## One‑Line Pitch
+QUANTIVA EXPLORER is a quantum‑inspired, visual platform that helps students and early researchers explore massive molecular search spaces, probabilistically prioritize drug candidates, and save reproducible experiments and simulation histories.
 
-Deployment (Render)
--------------------
+## Team
+**VORTED CORE** — creators of QUANTIVA EXPLORER
 
-This repository contains two services:
+---
 
-- `backend` — Node.js Express API (expects `MONGODB_URI`, `GEMINI_API_KEY`)
-- `frontend` — Vite-built static app (output `dist`)
+## Problem Statement
+Drug discovery requires exploring extremely large molecular spaces to identify promising candidates. Traditional methods treat discovery as a linear filtering pipeline, making it slow, expensive, and difficult to interpret.
 
-To deploy to Render using the provided `render.yaml`:
+## Core Challenge
+Students and early researchers struggle to understand drug discovery workflows because many existing tools rely on complex mathematical models rather than intuitive visual exploration and experiment tracking.
 
-1. Connect your GitHub repo to Render.
-2. In Render, create a new service from repository and allow using `render.yaml` (or Import using `render.yaml`).
-3. For the backend service, set environment variables in Render dashboard (do NOT commit secrets to the repo): `MONGODB_URI`, `GEMINI_API_KEY`.
-4. The frontend is configured as a static site: build command `cd frontend && npm install && npm run build`, publish directory `frontend/dist`.
+## Our Approach
+- Probabilistic evaluation and ranking (quantum‑inspired ideas) to prioritize molecules.
+- Parallel exploration and ranking logic to surface promising candidates faster.
+- Rich 2D and 3D molecule visualizations with interactive viewers.
+- Per‑user persistence: sign up/login, JWT auth, hashed passwords, and user‑scoped storage for experiments, configs, simulation history, disease experiment runs, and generated reports.
 
-Security note: Remove any committed secrets and rotate credentials if they were previously exposed in the repo history.
+## Key Features
+- Signup / Login with secure password hashing and JWT.
+- Protected exploration routes (only signed‑in researchers can run/save experiments).
+- Save/load experiments, weight configurations, simulation history, disease experiment sets, and reports per user.
+- 2D molecule images, 3D popouts, molecule sketching, and analytics dashboards.
+- Beautiful sign‑in UI with animated molecule background for better UX.
 
-Notes
-- Ensure `backend/.env` contains `PORT`, `MONGODB_URI` (optional) and `GEMINI_API_KEY` for the assistant.
-- If you want one command to run both servers, I can add a root orchestrator script.
+---
+
+## Tech Stack
+- Frontend: React + TypeScript, Vite
+- Styling: Tailwind / CSS
+- Backend: Node.js, Express, Mongoose (MongoDB)
+- Auth: JWT, `bcryptjs` for password hashing
+- Dev: npm, vite
+
+---
+
+## Quick Start (Local Development)
+
+Clone the repo and install dependencies:
+
+```bash
+git clone <your-repo-url>
+cd quantum-vista-explore-main
+```
+
+Backend
+
+```bash
+cd backend
+npm install
+# create backend/.env with values from the example below
+npm run dev
+```
+
+Frontend
+
+```bash
+cd ../frontend
+npm install
+npm run dev
+# open the Vite dev URL shown in the terminal (default http://localhost:5173)
+```
+
+### Example environment variables
+Create `backend/.env`:
+
+```text
+PORT=8080
+MONGODB_URI=mongodb://localhost:27017/quantiva
+JWT_SECRET=your-secret-key
+```
+
+Create `frontend/.env`:
+
+```text
+VITE_API_BASE=http://localhost:8080
+```
+
+Note: If MongoDB is not available, the backend provides a JSON fallback in some demo flows, but persistence requires a running MongoDB instance.
+
+---
+
+## API Quick Reference
+
+- POST `/signup` — body: { name, email, password }
+- POST `/login` — body: { email, password } → returns JWT
+- GET `/me` — header: `Authorization: Bearer <token>`
+- POST `/user/experiments` — save user experiment (auth required)
+- GET `/user/experiments` — list saved experiments (auth required)
+
+Refer to `backend/server/index.js` for full endpoint details.
+
+---
+
+## Recommended Screenshots (what to include in README)
+Place screenshots in `docs/screenshots/` or `frontend/public/screenshots/`. Recommended set:
+
+- `landing.png` — project landing / home page
+- `login.png` — login / signup page with animated background
+- `dashboard-profile.png` — dashboard showing profile menu
+- `exploration-3d.png` — 3D molecule viewer popout
+- `molecule-2d.png` — 2D molecule panel
+- `simulation-history.png` — saved simulation history list
+- `saved-experiments.png` — list of saved experiments
+- `analytics-dashboard.png` — datasets/visualization metrics
+- `search-space-diagram.png` — the problem/context diagram (use the provided attachment image)
+
+## Image insertion examples (Markdown)
+
+Basic single image:
+
+```markdown
+![Landing — Home](docs/screenshots/landing.png)
+```
+
+Two images side‑by‑side (HTML in Markdown):
+
+```markdown
+<p float="left">
+  <img src="docs/screenshots/landing.png" width="48%" />
+  <img src="docs/screenshots/exploration-3d.png" width="48%" />
+</p>
+```
+
+Image from `frontend/public` (GitHub Pages / raw path):
+
+```markdown
+![Dashboard](/screenshots/dashboard.png)
+```
+
+Tips: use 1280×720 or 1024×640 exports for clarity; keep files under ~500KB for faster repo loads.
+
+---
+
+## Screenshots Gallery (template to paste in README)
+
+```markdown
+## Screenshots
+
+![Landing](docs/screenshots/landing.png)
+![Login](docs/screenshots/login.png)
+![Exploration 3D](docs/screenshots/exploration-3d.png)
+```
+
+---
+
+## How to Record a Short GIF of the 3D Viewer
+1. Use a screen recorder like OBS, ShareX, or macOS QuickTime.
+2. Record a 5–8 second interaction of the 3D viewer rotating or highlighting a molecule.
+3. Export as GIF or MP4 (MP4 recommended for quality). Place file in `docs/gifs/` and embed with:
+
+```markdown
+![3D Viewer Demo](docs/gifs/exploration-demo.mp4)
+```
+
+---
+
+## Contributing
+- Fork → branch → PR. Please include screenshots for UI changes and update the gallery.
+
+## License
+Add your preferred license (we suggest MIT for hackathon demos).
+
+## Contact
+- Team: **VORTED CORE**
+- Maintainters / Contact: add your emails or GitHub handles here.
+
+---
+
+Thank you for exploring QUANTIVA EXPLORER — feel free to ask me to commit this file, add the `docs/screenshots/` folder, or generate a gallery README for the screenshots directory.
