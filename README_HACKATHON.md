@@ -105,30 +105,29 @@ Refer to `backend/server/index.js` for full endpoint details.
 ## Recommended Screenshots (what to include in README)
 Place screenshots in `docs/screenshots/` or `frontend/public/screenshots/`. Recommended set:
 
-- `landing.png` — project landing / home page
-- `login.png` — login / signup page with animated background
-- `dashboard-profile.png` — dashboard showing profile menu
-- `exploration-3d.png` — 3D molecule viewer popout
-- `molecule-2d.png` — 2D molecule panel
-- `simulation-history.png` — saved simulation history list
-- `saved-experiments.png` — list of saved experiments
-- `analytics-dashboard.png` — datasets/visualization metrics
-- `search-space-diagram.png` — the problem/context diagram (use the provided attachment image)
+- `LandingPage.png` — project landing / home page
+- `Sign in page.png` — sign-in page with animated background
+- `Sign Up page.png` — sign-up page
+- `Exploration.png` — 3D molecule viewer popout
+- `2D.png` — 2D molecule panel
+- `Simulation.png` — simulation history
+- `SearchSpaceDiagram.png` — the problem/context diagram
+- `RealLifeImpact.png` — real-life impact / project context
 
 ## Image insertion examples (Markdown)
 
 Basic single image:
 
 ```markdown
-![Landing — Home](docs/screenshots/landing.png)
+![Landing — Home](docs/screenshots/LandingPage.png)
 ```
 
 Two images side‑by‑side (HTML in Markdown):
 
 ```markdown
 <p float="left">
-  <img src="docs/screenshots/landing.png" width="48%" />
-  <img src="docs/screenshots/exploration-3d.png" width="48%" />
+  <img src="docs/screenshots/LandingPage.png" width="48%" />
+  <img src="docs/screenshots/Exploration.png" width="48%" />
 </p>
 ```
 
@@ -147,9 +146,10 @@ Tips: use 1280×720 or 1024×640 exports for clarity; keep files under ~500KB fo
 ```markdown
 ## Screenshots
 
-![Landing](docs/screenshots/landing.png)
-![Login](docs/screenshots/login.png)
-![Exploration 3D](docs/screenshots/exploration-3d.png)
+![Landing](docs/screenshots/LandingPage.png)
+![Sign in](docs/screenshots/Sign%20in%20page.png)
+![Sign up](docs/screenshots/Sign%20Up%20page.png)
+![Exploration 3D](docs/screenshots/Exploration.png)
 ```
 
 ---
