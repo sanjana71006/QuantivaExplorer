@@ -26,7 +26,8 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
 const app = express();
-const PORT = Number(process.env.PORT || 8080);
+const DEFAULT_PORT = 8080;
+const PORT = Number(process.env.PORT) || DEFAULT_PORT;
 
 // Initialize Gemini API
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
@@ -2306,13 +2307,33 @@ process.on("SIGINT", async () => {
   process.exit(0);
 });
 
-app.listen(PORT, () => {
-  console.log(`\n🚀 Quantiva backend running on http://localhost:${PORT}`);
-  console.log(`   API docs: http://localhost:${PORT}/api/health`);
-  if (mongoReady && isMongoConnected()) {
-    console.log(`   Storage: MongoDB Atlas`);
-  } else {
-    console.log(`   Storage: JSON (MongoDB not available)`);
-  }
-  console.log("");
-});
+const startListening = (portToUse, triedFallback = false) => {
+  const server = app.listen(portToUse, () => {
+    console.log(`\n🚀 Quantiva backend running on http://localhost:${portToUse}`);
+    console.log(`   API docs: http://localhost:${portToUse}/api/health`);
+    if (mongoReady && isMongoConnected()) {
+      console.log(`   Storage: MongoDB Atlas`);
+    } else {
+      console.log(`   Storage: JSON (MongoDB not available)`);
+    }
+    if (portToUse !== PORT) {
+      console.warn(`   Port ${PORT} was busy; using ${portToUse} instead.`);
+      console.warn(`   If frontend is local: set VITE_API_BASE_URL=http://localhost:${portToUse}`);
+    }
+    console.log("");
+  });
+
+  server.on("error", (err) => {
+    if (err?.code === "EADDRINUSE" && !triedFallback && !process.env.PORT) {
+      console.warn(`⚠️  Port ${portToUse} is already in use. Retrying on ${portToUse + 1}...`);
+      return startListening(portToUse + 1, true);
+    }
+    console.error("❌ Server failed to start:", err?.message || err);
+    if (err?.code === "EADDRINUSE") {
+      console.error(`   Port ${portToUse} is in use. Stop the process using it or set PORT to another value.`);
+    }
+    process.exit(1);
+  });
+};
+
+startListening(PORT);

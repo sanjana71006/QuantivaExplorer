@@ -9,7 +9,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User>(null);
   const [loading, setLoading] = useState(true);
 
-  const API_BASE = (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_API_BASE) || "http://localhost:8080";
+  const rawBase =
+    (typeof import.meta !== "undefined" &&
+      (((import.meta as any).env?.VITE_API_BASE_URL as string | undefined) ||
+        ((import.meta as any).env?.VITE_API_BASE as string | undefined))) ||
+    "http://localhost:8080";
+
+  const API_BASE = rawBase.replace(/\/+$/, "");
 
   useEffect(() => {
     async function fetchMe() {
@@ -43,7 +49,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
     });
-    if (!res.ok) throw new Error("Invalid credentials");
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.error || "Invalid credentials");
+    }
     const data = await res.json();
     setToken(data.token);
     localStorage.setItem("authToken", data.token);

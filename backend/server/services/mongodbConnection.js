@@ -1,4 +1,8 @@
 import mongoose from "mongoose";
+import dotenv from "dotenv";
+dotenv.config({ path: ".env" });
+
+const MONGO_URI = process.env.MONGO_URI || process.env.MONGODB_URI || "mongodb://localhost:27017/quantiva";
 
 let mongoConnection = null;
 let isConnecting = false;
@@ -20,14 +24,9 @@ async function connectMongo() {
   isConnecting = true;
 
   try {
-    const uri = process.env.MONGODB_URI;
-    if (!uri) {
-      throw new Error("MONGODB_URI environment variable is not set");
-    }
-
-    console.log("Connecting to MongoDB...");
-
-    const conn = await mongoose.connect(uri, {
+    const conn = await mongoose.connect(MONGO_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
       serverSelectionTimeoutMS: 10000,
       socketTimeoutMS: 45000,
       retryWrites: true,
@@ -45,16 +44,19 @@ async function connectMongo() {
 }
 
 export async function getMongoConnection() {
-  return connectMongo().catch((err) => {
-    console.error("Failed to get MongoDB connection:", err.message);
-    return null;
+  if (mongoose.connection.readyState === 1) return mongoose.connection;
+  await mongoose.connect(MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+    // useCreateIndex: true, // mongoose 6+ doesn't need this
   });
+  console.log("✓ Connected to MongoDB");
+  return mongoose.connection;
 }
 
 export async function disconnectMongo() {
-  if (mongoConnection) {
+  if (mongoose.connection.readyState !== 0) {
     await mongoose.disconnect();
-    mongoConnection = null;
     console.log("✓ Disconnected from MongoDB");
   }
 }
