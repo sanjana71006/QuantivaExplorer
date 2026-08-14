@@ -50,6 +50,8 @@ export async function getMongoConnection() {
     useUnifiedTopology: true,
     // useCreateIndex: true, // mongoose 6+ doesn't need this
   });
+  mongoConnection = mongoose.connection;
+  isConnecting = false;
   console.log("✓ Connected to MongoDB");
   return mongoose.connection;
 }
@@ -62,5 +64,5 @@ export async function disconnectMongo() {
 }
 
 export function isMongoConnected() {
-  return mongoConnection && mongoose.connection.readyState === 1;
+  return mongoose.connection.readyState === 1;
 }

@@ -3,6 +3,9 @@ dotenv.config();
 
 import express from "express";
 import cors from "cors";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import { randomUUID } from "crypto";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import {
   getDataset,
@@ -22,12 +25,56 @@ import {
 import { fetchFromPubchem, fetchCompoundByName, fetchCompoundsByKeyword } from "./services/pubchemService.js";
 import { fetchFromChembl } from "./services/chemblService.js";
 import { loadLocalDataset } from "./services/datasetFallback.js";
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
 
 const app = express();
 const DEFAULT_PORT = 8080;
 const PORT = Number(process.env.PORT) || DEFAULT_PORT;
+
+const JWT_SECRET =
+  process.env.JWT_SECRET || process.env.AUTH_SECRET || process.env.SESSION_SECRET || "dev-jwt-secret";
+
+function generateToken(user) {
+  const payload = {
+    id: String(user?._id ?? user?.id ?? ""),
+    name: user?.name,
+    email: user?.email,
+  };
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
+}
+
+function authMiddleware(req, res, next) {
+  const header = req.headers?.authorization || req.headers?.Authorization;
+  const raw = Array.isArray(header) ? header[0] : header;
+  const token = typeof raw === "string" && raw.startsWith("Bearer ") ? raw.slice("Bearer ".length) : null;
+  if (!token) return res.status(401).json({ error: "Missing auth token" });
+  try {
+    req.user = jwt.verify(token, JWT_SECRET);
+    return next();
+  } catch (err) {
+    return res.status(401).json({ error: "Invalid token" });
+  }
+}
+
+const memoryUsersByEmail = new Map();
+const memoryBucketsByUserId = new Map();
+
+function getMemoryUserByEmail(email) {
+  return memoryUsersByEmail.get(String(email)) || null;
+}
+
+function putMemoryUser(user) {
+  if (!user?.email) return;
+  memoryUsersByEmail.set(String(user.email), user);
+}
+
+function getMemoryBucket(userId) {
+  const key = String(userId);
+  const existing = memoryBucketsByUserId.get(key);
+  if (existing) return existing;
+  const bucket = { experiments: [], configs: [], history: [], reports: [], diseaseExperiments: [] };
+  memoryBucketsByUserId.set(key, bucket);
+  return bucket;
+}
 
 // Initialize Gemini API
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
@@ -35,27 +82,8 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 
-const JWT_SECRET = process.env.JWT_SECRET || "quantiva_dev_secret";
-
-function generateToken(user) {
-  return jwt.sign({ id: String(user._id), name: user.name, email: user.email }, JWT_SECRET, {
-    expiresIn: "7d",
-  });
-}
-
-function authMiddleware(req, res, next) {
-  const header = req.headers.authorization;
-  if (!header) return res.status(401).json({ error: "Unauthorized" });
-  const parts = header.split(" ");
-  const token = parts.length === 2 ? parts[1] : null;
-  if (!token) return res.status(401).json({ error: "Unauthorized" });
-  try {
-    const payload = jwt.verify(token, JWT_SECRET);
-    req.user = payload;
-    return next();
-  } catch (err) {
-    return res.status(401).json({ error: "Invalid token" });
-  }
+function isStorageAvailable() {
+  return mongoReady && isMongoConnected();
 }
 
 // Initialize MongoDB connection on startup
@@ -2106,15 +2134,24 @@ app.post("/signup", async (req, res) => {
   try {
     const { name, email, password } = req.body || {};
     if (!name || !email || !password) return res.status(400).json({ error: "Missing fields" });
-    if (!mongoReady || !isMongoConnected()) return res.status(503).json({ error: "Storage unavailable" });
 
-    const existing = await User.findOne({ email: String(email).toLowerCase() }).lean();
-    if (existing) return res.status(400).json({ error: "Email already in use" });
-
+    const normalizedEmail = String(email).toLowerCase();
     const passwordHash = bcrypt.hashSync(String(password), 10);
-    const user = await User.create({ name: String(name), email: String(email).toLowerCase(), passwordHash });
-    const token = generateToken(user);
-    return res.json({ token, user: { name: user.name, email: user.email } });
+
+    if (isStorageAvailable()) {
+      const existing = await User.findOne({ email: normalizedEmail }).lean();
+      if (existing) return res.status(400).json({ error: "Email already in use" });
+      const user = await User.create({ name: String(name), email: normalizedEmail, passwordHash });
+      const token = generateToken(user);
+      return res.json({ token, user: { id: String(user._id), name: user.name, email: user.email } });
+    }
+
+    const existingMemory = getMemoryUserByEmail(normalizedEmail);
+    if (existingMemory) return res.status(400).json({ error: "Email already in use" });
+    const memoryUser = { _id: randomUUID(), name: String(name), email: normalizedEmail, passwordHash };
+    putMemoryUser(memoryUser);
+    const token = generateToken(memoryUser);
+    return res.json({ token, user: { id: String(memoryUser._id), name: memoryUser.name, email: memoryUser.email } });
   } catch (err) {
     console.error("/signup error:", err);
     return res.status(500).json({ error: String(err) });
@@ -2125,16 +2162,24 @@ app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body || {};
     if (!email || !password) return res.status(400).json({ error: "Missing fields" });
-    if (!mongoReady || !isMongoConnected()) return res.status(503).json({ error: "Storage unavailable" });
 
-    const user = await User.findOne({ email: String(email).toLowerCase() });
+    const normalizedEmail = String(email).toLowerCase();
+
+    if (isStorageAvailable()) {
+      const user = await User.findOne({ email: normalizedEmail });
+      if (!user) return res.status(400).json({ error: "Invalid credentials" });
+      const ok = bcrypt.compareSync(String(password), user.passwordHash);
+      if (!ok) return res.status(400).json({ error: "Invalid credentials" });
+      const token = generateToken(user);
+      return res.json({ token, user: { id: String(user._id), name: user.name, email: user.email } });
+    }
+
+    const user = getMemoryUserByEmail(normalizedEmail);
     if (!user) return res.status(400).json({ error: "Invalid credentials" });
-
     const ok = bcrypt.compareSync(String(password), user.passwordHash);
     if (!ok) return res.status(400).json({ error: "Invalid credentials" });
-
     const token = generateToken(user);
-    return res.json({ token, user: { name: user.name, email: user.email } });
+    return res.json({ token, user: { id: String(user._id), name: user.name, email: user.email } });
   } catch (err) {
     console.error("/login error:", err);
     return res.status(500).json({ error: String(err) });
@@ -2143,11 +2188,15 @@ app.post("/login", async (req, res) => {
 
 app.get("/me", authMiddleware, async (req, res) => {
   try {
-    if (!mongoReady || !isMongoConnected()) return res.status(503).json({ error: "Storage unavailable" });
-    const uid = req.user?.id;
-    const user = await User.findById(uid).lean();
-    if (!user) return res.status(404).json({ error: "Not found" });
-    return res.json({ name: user.name, email: user.email, id: user._id });
+    if (isStorageAvailable()) {
+      const uid = req.user?.id;
+      const user = await User.findById(uid).lean();
+      if (!user) return res.status(404).json({ error: "Not found" });
+      return res.json({ name: user.name, email: user.email, id: user._id });
+    }
+
+    // When MongoDB is unavailable, return the JWT payload.
+    return res.json({ name: req.user?.name, email: req.user?.email, id: req.user?.id });
   } catch (err) {
     console.error("/me error:", err);
     return res.status(500).json({ error: String(err) });
@@ -2157,13 +2206,19 @@ app.get("/me", authMiddleware, async (req, res) => {
 // Save and fetch user-scoped resources
 app.post("/user/experiments", authMiddleware, async (req, res) => {
   try {
-    if (!mongoReady || !isMongoConnected()) return res.status(503).json({ error: "Storage unavailable" });
     const uid = req.user.id;
     const payload = req.body || {};
-    const user = await User.findById(uid);
-    if (!user) return res.status(404).json({ error: "Not found" });
-    user.experiments.push({ data: payload, createdAt: new Date() });
-    await user.save();
+
+    if (isStorageAvailable()) {
+      const user = await User.findById(uid);
+      if (!user) return res.status(404).json({ error: "Not found" });
+      user.experiments.push({ data: payload, createdAt: new Date() });
+      await user.save();
+      return res.json({ ok: true });
+    }
+
+    const bucket = getMemoryBucket(uid);
+    bucket.experiments.push({ data: payload, createdAt: new Date() });
     return res.json({ ok: true });
   } catch (err) {
     console.error("/user/experiments POST error:", err);
@@ -2173,11 +2228,16 @@ app.post("/user/experiments", authMiddleware, async (req, res) => {
 
 app.get("/user/experiments", authMiddleware, async (req, res) => {
   try {
-    if (!mongoReady || !isMongoConnected()) return res.status(503).json({ error: "Storage unavailable" });
     const uid = req.user.id;
-    const user = await User.findById(uid).lean();
-    if (!user) return res.status(404).json({ error: "Not found" });
-    return res.json({ experiments: user.experiments || [] });
+
+    if (isStorageAvailable()) {
+      const user = await User.findById(uid).lean();
+      if (!user) return res.status(404).json({ error: "Not found" });
+      return res.json({ experiments: user.experiments || [] });
+    }
+
+    const bucket = getMemoryBucket(uid);
+    return res.json({ experiments: bucket.experiments || [] });
   } catch (err) {
     console.error("/user/experiments GET error:", err);
     return res.status(500).json({ error: String(err) });
@@ -2186,13 +2246,19 @@ app.get("/user/experiments", authMiddleware, async (req, res) => {
 
 app.post("/user/configs", authMiddleware, async (req, res) => {
   try {
-    if (!mongoReady || !isMongoConnected()) return res.status(503).json({ error: "Storage unavailable" });
     const uid = req.user.id;
     const payload = req.body || {};
-    const user = await User.findById(uid);
-    if (!user) return res.status(404).json({ error: "Not found" });
-    user.configs.push({ data: payload, createdAt: new Date() });
-    await user.save();
+
+    if (isStorageAvailable()) {
+      const user = await User.findById(uid);
+      if (!user) return res.status(404).json({ error: "Not found" });
+      user.configs.push({ data: payload, createdAt: new Date() });
+      await user.save();
+      return res.json({ ok: true });
+    }
+
+    const bucket = getMemoryBucket(uid);
+    bucket.configs.push({ data: payload, createdAt: new Date() });
     return res.json({ ok: true });
   } catch (err) {
     console.error("/user/configs POST error:", err);
@@ -2202,11 +2268,16 @@ app.post("/user/configs", authMiddleware, async (req, res) => {
 
 app.get("/user/configs", authMiddleware, async (req, res) => {
   try {
-    if (!mongoReady || !isMongoConnected()) return res.status(503).json({ error: "Storage unavailable" });
     const uid = req.user.id;
-    const user = await User.findById(uid).lean();
-    if (!user) return res.status(404).json({ error: "Not found" });
-    return res.json({ configs: user.configs || [] });
+
+    if (isStorageAvailable()) {
+      const user = await User.findById(uid).lean();
+      if (!user) return res.status(404).json({ error: "Not found" });
+      return res.json({ configs: user.configs || [] });
+    }
+
+    const bucket = getMemoryBucket(uid);
+    return res.json({ configs: bucket.configs || [] });
   } catch (err) {
     console.error("/user/configs GET error:", err);
     return res.status(500).json({ error: String(err) });
@@ -2215,13 +2286,19 @@ app.get("/user/configs", authMiddleware, async (req, res) => {
 
 app.post("/user/history", authMiddleware, async (req, res) => {
   try {
-    if (!mongoReady || !isMongoConnected()) return res.status(503).json({ error: "Storage unavailable" });
     const uid = req.user.id;
     const payload = req.body || {};
-    const user = await User.findById(uid);
-    if (!user) return res.status(404).json({ error: "Not found" });
-    user.history.push({ data: payload, createdAt: new Date() });
-    await user.save();
+
+    if (isStorageAvailable()) {
+      const user = await User.findById(uid);
+      if (!user) return res.status(404).json({ error: "Not found" });
+      user.history.push({ data: payload, createdAt: new Date() });
+      await user.save();
+      return res.json({ ok: true });
+    }
+
+    const bucket = getMemoryBucket(uid);
+    bucket.history.push({ data: payload, createdAt: new Date() });
     return res.json({ ok: true });
   } catch (err) {
     console.error("/user/history POST error:", err);
@@ -2231,11 +2308,16 @@ app.post("/user/history", authMiddleware, async (req, res) => {
 
 app.get("/user/history", authMiddleware, async (req, res) => {
   try {
-    if (!mongoReady || !isMongoConnected()) return res.status(503).json({ error: "Storage unavailable" });
     const uid = req.user.id;
-    const user = await User.findById(uid).lean();
-    if (!user) return res.status(404).json({ error: "Not found" });
-    return res.json({ history: user.history || [] });
+
+    if (isStorageAvailable()) {
+      const user = await User.findById(uid).lean();
+      if (!user) return res.status(404).json({ error: "Not found" });
+      return res.json({ history: user.history || [] });
+    }
+
+    const bucket = getMemoryBucket(uid);
+    return res.json({ history: bucket.history || [] });
   } catch (err) {
     console.error("/user/history GET error:", err);
     return res.status(500).json({ error: String(err) });
@@ -2244,13 +2326,19 @@ app.get("/user/history", authMiddleware, async (req, res) => {
 
 app.post("/user/reports", authMiddleware, async (req, res) => {
   try {
-    if (!mongoReady || !isMongoConnected()) return res.status(503).json({ error: "Storage unavailable" });
     const uid = req.user.id;
     const payload = req.body || {};
-    const user = await User.findById(uid);
-    if (!user) return res.status(404).json({ error: "Not found" });
-    user.reports.push({ data: payload, createdAt: new Date() });
-    await user.save();
+
+    if (isStorageAvailable()) {
+      const user = await User.findById(uid);
+      if (!user) return res.status(404).json({ error: "Not found" });
+      user.reports.push({ data: payload, createdAt: new Date() });
+      await user.save();
+      return res.json({ ok: true });
+    }
+
+    const bucket = getMemoryBucket(uid);
+    bucket.reports.push({ data: payload, createdAt: new Date() });
     return res.json({ ok: true });
   } catch (err) {
     console.error("/user/reports POST error:", err);
@@ -2260,11 +2348,16 @@ app.post("/user/reports", authMiddleware, async (req, res) => {
 
 app.get("/user/reports", authMiddleware, async (req, res) => {
   try {
-    if (!mongoReady || !isMongoConnected()) return res.status(503).json({ error: "Storage unavailable" });
     const uid = req.user.id;
-    const user = await User.findById(uid).lean();
-    if (!user) return res.status(404).json({ error: "Not found" });
-    return res.json({ reports: user.reports || [] });
+
+    if (isStorageAvailable()) {
+      const user = await User.findById(uid).lean();
+      if (!user) return res.status(404).json({ error: "Not found" });
+      return res.json({ reports: user.reports || [] });
+    }
+
+    const bucket = getMemoryBucket(uid);
+    return res.json({ reports: bucket.reports || [] });
   } catch (err) {
     console.error("/user/reports GET error:", err);
     return res.status(500).json({ error: String(err) });
@@ -2273,13 +2366,19 @@ app.get("/user/reports", authMiddleware, async (req, res) => {
 
 app.post("/user/disease-experiments", authMiddleware, async (req, res) => {
   try {
-    if (!mongoReady || !isMongoConnected()) return res.status(503).json({ error: "Storage unavailable" });
     const uid = req.user.id;
     const payload = req.body || {};
-    const user = await User.findById(uid);
-    if (!user) return res.status(404).json({ error: "Not found" });
-    user.diseaseExperiments.push({ data: payload, createdAt: new Date() });
-    await user.save();
+
+    if (isStorageAvailable()) {
+      const user = await User.findById(uid);
+      if (!user) return res.status(404).json({ error: "Not found" });
+      user.diseaseExperiments.push({ data: payload, createdAt: new Date() });
+      await user.save();
+      return res.json({ ok: true });
+    }
+
+    const bucket = getMemoryBucket(uid);
+    bucket.diseaseExperiments.push({ data: payload, createdAt: new Date() });
     return res.json({ ok: true });
   } catch (err) {
     console.error("/user/disease-experiments POST error:", err);
@@ -2289,11 +2388,16 @@ app.post("/user/disease-experiments", authMiddleware, async (req, res) => {
 
 app.get("/user/disease-experiments", authMiddleware, async (req, res) => {
   try {
-    if (!mongoReady || !isMongoConnected()) return res.status(503).json({ error: "Storage unavailable" });
     const uid = req.user.id;
-    const user = await User.findById(uid).lean();
-    if (!user) return res.status(404).json({ error: "Not found" });
-    return res.json({ diseaseExperiments: user.diseaseExperiments || [] });
+
+    if (isStorageAvailable()) {
+      const user = await User.findById(uid).lean();
+      if (!user) return res.status(404).json({ error: "Not found" });
+      return res.json({ diseaseExperiments: user.diseaseExperiments || [] });
+    }
+
+    const bucket = getMemoryBucket(uid);
+    return res.json({ diseaseExperiments: bucket.diseaseExperiments || [] });
   } catch (err) {
     console.error("/user/disease-experiments GET error:", err);
     return res.status(500).json({ error: String(err) });

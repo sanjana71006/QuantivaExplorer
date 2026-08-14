@@ -1,0 +1,359 @@
+{\rtf1\ansi\deff0
+{\fonttbl{\f0 Calibri;}{\f1 Consolas;}}
+\viewkind4\uc1\pard\sa160\sl276\slmult1\lang1033\f0\fs22
+\pard\sa220\b\fs36 Quantiva Explorer - Interview Master Q&A\b0\fs22\par
+\par
+\pard\sa180\b\fs30 Project Summary\b0\fs22\par
+\pard **Quantiva Explorer** is a quantum-inspired drug discovery exploration platform that helps users search, compare, score, and visualize molecular candidates using probabilistic ranking and interactive 3D interfaces.\par
+\par
+\pard\sa120 ------------------------------------------------------------\par
+\par
+\pard\sa180\b\fs30 1) What datasets are used in this project?\b0\fs22\par
+\pard The project uses four core datasets:\par
+\par
+\pard\li360\tx360 1. **processed_dataset.json** (final merged and engineered dataset)\par
+\pard\li360\tx360 2. **cleaned_dataset.csv** (tabular version of the final merged dataset)\par
+\pard\li360\tx360 3. **delaney-processed.csv** (solubility-focused source dataset)\par
+\pard\li360\tx360 4. **PubChem_compound_antibiotic.csv** (large PubChem-derived source dataset)\par
+\par
+\pard It also supports **live API retrieval** from PubChem and ChEMBL at runtime.\par
+\par
+\pard\sa120 ------------------------------------------------------------\par
+\par
+\pard\sa180\b\fs30 2) What are dataset sizes and important attributes?\b0\fs22\par
+\pard\sa140\b\fs26 Dataset sizes\b0\fs22\par
+\pard\li360\tx360 1. processed_dataset.json: **3,487** rows\par
+\pard\li360\tx360 2. cleaned_dataset.csv: **3,487** rows\par
+\pard\li360\tx360 3. delaney-processed.csv: **1,128** rows\par
+\pard\li360\tx360 4. PubChem_compound_antibiotic.csv: **2,359** rows\par
+\par
+\pard\sa140\b\fs26 Source distribution in final merged data\b0\fs22\par
+\pard\li360\tx360 1. pubchem_antibiotic: **2,359**\par
+\pard\li360\tx360 2. delaney_solubility: **1,128**\par
+\par
+\pard\sa140\b\fs26 Important attributes in final dataset\b0\fs22\par
+\pard\li360\tx360 1. candidate_id\par
+\pard\li360\tx360 2. source_dataset\par
+\pard\li360\tx360 3. name\par
+\pard\li360\tx360 4. smiles\par
+\pard\li360\tx360 5. molecular_weight\par
+\pard\li360\tx360 6. polar_area\par
+\pard\li360\tx360 7. xlogp\par
+\pard\li360\tx360 8. h_bond_donor_count\par
+\pard\li360\tx360 9. h_bond_acceptor_count\par
+\pard\li360\tx360 10. rotatable_bond_count\par
+\pard\li360\tx360 11. binding_score\par
+\pard\li360\tx360 12. toxicity\par
+\pard\li360\tx360 13. stability\par
+\pard\li360\tx360 14. solubility\par
+\pard\li360\tx360 15. efficacy_index\par
+\pard\li360\tx360 16. safety_index\par
+\pard\li360\tx360 17. molecular_complexity\par
+\pard\li360\tx360 18. drug_score\par
+\pard\li360\tx360 19. priority_rank\par
+\par
+\pard\sa120 ------------------------------------------------------------\par
+\par
+\pard\sa180\b\fs30 3) What are the target variables?\b0\fs22\par
+\pard There is no single supervised ML target label trained inside the app runtime. Instead, the platform computes ranking targets through engineered scoring:\par
+\par
+\pard\li360\tx360 1. **drug_score**: primary composite ranking score\par
+\pard\li360\tx360 2. **priority_rank**: final rank after sorting by drug_score\par
+\par
+\pard Intermediate engineered targets used for scoring:\par
+\pard\li360\tx360 1. efficacy_index\par
+\pard\li360\tx360 2. safety_index\par
+\pard\li360\tx360 3. molecular_complexity\par
+\par
+\pard\sa120 ------------------------------------------------------------\par
+\par
+\pard\sa180\b\fs30 4) Which APIs are used in this project?\b0\fs22\par
+\pard\sa140\b\fs26 External APIs\b0\fs22\par
+\pard\li360\tx360 1. **PubChem PUG REST API**\par
+\pard\li360\tx360 2. **ChEMBL API**\par
+\pard\li360\tx360 3. **Google Gemini API** (assistant responses)\par
+\par
+\pard\sa140\b\fs26 Internal APIs (backend)\b0\fs22\par
+\pard\li360\tx360 1. /api/meta\par
+\pard\li360\tx360 2. /api/candidates\par
+\pard\li360\tx360 3. /api/score\par
+\pard\li360\tx360 4. /api/molecule/:name\par
+\pard\li360\tx360 5. /api/disease-search\par
+\pard\li360\tx360 6. /api/live-molecules\par
+\pard\li360\tx360 7. /api/chat\par
+\par
+\pard\sa120 ------------------------------------------------------------\par
+\par
+\pard\sa180\b\fs30 5) What data is retrieved from APIs?\b0\fs22\par
+\pard From PubChem/ChEMBL the app retrieves:\par
+\pard\li360\tx360 1. Compound ID\par
+\pard\li360\tx360 2. Name\par
+\pard\li360\tx360 3. Molecular weight\par
+\pard\li360\tx360 4. LogP\par
+\pard\li360\tx360 5. H-bond donor count\par
+\pard\li360\tx360 6. H-bond acceptor count\par
+\pard\li360\tx360 7. SMILES\par
+\pard\li360\tx360 8. Optional additional metadata (for example, TPSA, image references)\par
+\par
+\pard Then the backend computes normalized and derived values:\par
+\pard\li360\tx360 1. efficacy_index\par
+\pard\li360\tx360 2. safety_index\par
+\pard\li360\tx360 3. molecular_complexity\par
+\pard\li360\tx360 4. weighted_score\par
+\pard\li360\tx360 5. probability\par
+\par
+\pard\sa120 ------------------------------------------------------------\par
+\par
+\pard\sa180\b\fs30 6) How many samples are retrieved from APIs?\b0\fs22\par
+\pard It is configurable per endpoint.\par
+\par
+\pard\li360\tx360 1. Molecule-by-name endpoint: up to **50** results\par
+\pard\li360\tx360 2. Disease search endpoint: up to **50** results\par
+\pard\li360\tx360 3. Live molecules endpoint: default **50**, configurable up to **1000**\par
+\par
+\pard\sa120 ------------------------------------------------------------\par
+\par
+\pard\sa180\b\fs30 7) Code snippet: How API integration is implemented\b0\fs22\par
+\pard\sa100\f1\fs20 
+\pard // Backend live fetch strategy: PubChem -> ChEMBL -> Local fallback\par
+\pard app.get('/api/live-molecules', async (req, res) => \{\par
+\pard   const limit = Math.min(Math.max(Number(req.query.limit ?? 50), 1), 1000);\par
+\pard   let rows = [];\par
+\pard   let source = null;\par
+\par
+\pard   try \{\par
+\pard     rows = await fetchFromPubchem(\{ limit, timeoutMs: 3000 \});\par
+\pard     source = 'pubchem';\par
+\pard   \} catch \{\par
+\pard     try \{\par
+\pard       rows = await fetchFromChembl(\{ limit, timeoutMs: 3000 \});\par
+\pard       source = 'chembl';\par
+\pard     \} catch \{\par
+\pard       rows = await loadLocalDataset(\{ limit \});\par
+\pard       source = 'local';\par
+\pard     \}\par
+\pard   \}\par
+\par
+\pard   return res.json(\{ source, count: rows.length, items: rows \});\par
+\pard \});\par
+\pard\sa100\f1\fs20 
+\par
+\pard\sa100\f1\fs20 
+\pard // Frontend consumption\par
+\pard const url = `$\{apiBase\}/api/live-molecules?limit=$\{limit\}&alpha=$\{alpha\}&timeoutMs=$\{timeoutMs\}`;\par
+\pard const res = await fetch(url);\par
+\pard\sa100\f1\fs20 
+\par
+\pard\sa120 ------------------------------------------------------------\par
+\par
+\pard\sa180\b\fs30 8) Where is "quantum" used in this project?\b0\fs22\par
+\pard This is **quantum-inspired**, not quantum hardware execution.\par
+\par
+\pard Quantum-inspired elements:\par
+\pard\li360\tx360 1. Softmax-based probabilistic ranking\par
+\pard\li360\tx360 2. Probability diffusion via a quantum-walk-like process on molecular similarity graph\par
+\pard\li360\tx360 3. Exploration of non-obvious candidates through probability redistribution\par
+\pard\li360\tx360 4. Classical vs quantum-style comparative view\par
+\par
+\pard\sa120 ------------------------------------------------------------\par
+\par
+\pard\sa180\b\fs30 9) How are molecules ranked?\b0\fs22\par
+\pard\sa140\b\fs26 Core ranking formula\b0\fs22\par
+\pard Drug candidate score is a weighted combination of:\par
+\pard\li360\tx360 1. efficacy\par
+\pard\li360\tx360 2. safety\par
+\pard\li360\tx360 3. complexity balance\par
+\par
+\pard Default weighted composition:\par
+\pard\li360\tx360 1. efficacy: 0.45\par
+\pard\li360\tx360 2. safety: 0.35\par
+\pard\li360\tx360 3. complexityBalance: 0.20\par
+\par
+\pard Molecules are then sorted descending by score and assigned rank.\par
+\par
+\pard In frontend exploration mode, additional weighted scoring + softmax probabilities + optional diffusion is applied.\par
+\par
+\pard\sa120 ------------------------------------------------------------\par
+\par
+\pard\sa180\b\fs30 10) Important points and concepts to remember\b0\fs22\par
+\pard\li360\tx360 1. This is an **end-to-end platform**: data ingestion, harmonization, feature engineering, ranking, visualization, and reporting.\par
+\pard\li360\tx360 2. Uses **multi-source molecular data** with schema harmonization.\par
+\pard\li360\tx360 3. Includes **resilient fallback architecture** (PubChem -> ChEMBL -> Local).\par
+\pard\li360\tx360 4. Supports **interactive 3D molecular exploration** and comparative analysis.\par
+\pard\li360\tx360 5. Implements **user authentication and persistence** for saved experiments/configurations.\par
+\pard\li360\tx360 6. "Quantum" claim is **inspired algorithmic design**, not QPU execution.\par
+\pard\li360\tx360 7. Strong practical focus: explainable ranking factors and reproducible experiments.\par
+\par
+\pard\sa120 ------------------------------------------------------------\par
+\par
+\pard\sa180\b\fs30 11) Resume point defense (interview-ready)\b0\fs22\par
+\pard\sa140\b\fs26 Resume Point A\b0\fs22\par
+\pard "Built a platform for exploring drug compounds through molecular search, AI-assisted ranking, and interactive visualization."\par
+\par
+\pard **How to defend:**\par
+\pard\li360\tx360 1. Implemented molecular search through live API-backed endpoints and disease keyword retrieval.\par
+\pard\li360\tx360 2. Built weighted scoring and probability-based ranking engine for candidate prioritization.\par
+\pard\li360\tx360 3. Added interactive 2D/3D visualization and ranking dashboards for exploration.\par
+\par
+\pard\sa140\b\fs26 Resume Point B\b0\fs22\par
+\pard "Enabled users to compare molecular properties and identify promising drug candidates using an interactive 3D visualization interface."\par
+\par
+\pard **How to defend:**\par
+\pard\li360\tx360 1. Added side-by-side and split views (classical vs quantum-inspired scoring).\par
+\pard\li360\tx360 2. Enabled property-level comparison (MW, LogP, H-bond features, scores, confidence).\par
+\pard\li360\tx360 3. Used 3D molecular universe visualization to inspect clusters and high-value candidates interactively.\par
+\par
+\pard\sa120 ------------------------------------------------------------\par
+\par
+\pard\sa180\b\fs30 12) Project architecture (for interview whiteboard drawing)\b0\fs22\par
+\pard Use this simple 6-block architecture in interview:\par
+\par
+\pard\li360\tx360 1. **User Interface Layer (React + TypeScript + Three.js)**\par
+\pard    - Search, filters, ranking dashboard, 3D visualization, assistant UI\par
+\par
+\pard\li360\tx360 2. **Application Logic Layer (Frontend State + Scoring Controller)**\par
+\pard    - Weight tuning, simulation controls, diffusion toggles, result orchestration\par
+\par
+\pard\li360\tx360 3. **API Gateway Layer (Node.js + Express)**\par
+\pard    - Unified REST endpoints for candidates, scoring, molecule search, disease search, chat\par
+\par
+\pard\li360\tx360 4. **Data Integration Layer**\par
+\pard    - PubChem connector\par
+\pard    - ChEMBL connector\par
+\pard    - Local dataset fallback loader\par
+\par
+\pard\li360\tx360 5. **Scoring & Intelligence Layer**\par
+\pard    - Feature engineering\par
+\pard    - Weighted ranking\par
+\pard    - Softmax probability assignment\par
+\pard    - Quantum-inspired probability diffusion\par
+\par
+\pard\li360\tx360 6. **Persistence Layer (MongoDB + JSON fallback)**\par
+\pard    - Users, experiments, configs, history, reports\par
+\par
+\pard Suggested interview drawing flow:\par
+\pard **UI -> API -> Integrations/Data -> Scoring Engine -> Persistence -> UI**\par
+\par
+\pard\sa120 ------------------------------------------------------------\par
+\par
+\pard\sa180\b\fs30 13) Technologies used\b0\fs22\par
+\pard\li360\tx360 1. React.js\par
+\pard\li360\tx360 2. TypeScript\par
+\pard\li360\tx360 3. Three.js / React Three Fiber / Drei\par
+\pard\li360\tx360 4. Node.js\par
+\pard\li360\tx360 5. Express.js\par
+\pard\li360\tx360 6. MongoDB + Mongoose\par
+\pard\li360\tx360 7. JWT authentication\par
+\pard\li360\tx360 8. bcrypt password hashing\par
+\pard\li360\tx360 9. PubChem and ChEMBL APIs\par
+\pard\li360\tx360 10. Gemini API integration (assistant mode)\par
+\par
+\pard\sa120 ------------------------------------------------------------\par
+\par
+\pard\sa180\b\fs30 14) Challenges faced and how they were solved\b0\fs22\par
+\pard\li360\tx360 1. **Heterogeneous dataset schemas**\par
+\pard    - Solved via schema harmonization + feature engineering pipeline.\par
+\pard\li360\tx360 2. **External API reliability and latency**\par
+\pard    - Solved with timeout handling, caching, and fallback hierarchy.\par
+\pard\li360\tx360 3. **Interpretable ranking**\par
+\pard    - Solved with explicit weighted scoring and visible metrics.\par
+\pard\li360\tx360 4. **Visualization performance for many molecules**\par
+\pard    - Solved using efficient rendering approaches and sampling controls.\par
+\pard\li360\tx360 5. **User-specific experiment persistence**\par
+\pard    - Solved with auth + user-scoped storage models.\par
+\par
+\pard\sa120 ------------------------------------------------------------\par
+\par
+\pard\sa180\b\fs30 15) Does this solution already exist? If yes, what is your novelty?\b0\fs22\par
+\pard\sa140\b\fs26 Existing landscape\b0\fs22\par
+\pard Yes, molecular viewers, cheminformatics tools, and docking/ranking systems exist (for example, PubChem browser tools, ChEMBL browsing, and specialized drug-design software).\par
+\par
+\pard\sa140\b\fs26 Your novelty\b0\fs22\par
+\pard\li360\tx360 1. **Unified educational + exploratory workflow** in one platform (search + rank + compare + 3D visualize + save experiments).\par
+\pard\li360\tx360 2. **Quantum-inspired probabilistic exploration layer** integrated with practical web UX.\par
+\pard\li360\tx360 3. **Hybrid reliability strategy** (live API first, local fallback always available).\par
+\pard\li360\tx360 4. **Interview/demo-friendly explainability** (clear score components and ranking logic).\par
+\pard\li360\tx360 5. **Fast prototyping architecture** suitable for hackathon and extensible for research tooling.\par
+\par
+\pard\sa120 ------------------------------------------------------------\par
+\par
+\pard\sa180\b\fs30 16) 60-second closing pitch (memorize)\b0\fs22\par
+\pard "Quantiva Explorer is a quantum-inspired molecular exploration platform that integrates public chemical data, engineered drug-likeness scoring, and interactive 3D visualization to help researchers quickly identify promising candidates. It combines weighted ranking, probabilistic diffusion, and multi-source data fallback for robust, explainable, and scalable exploration. Beyond visualization, it supports reproducible experiments with user-scoped persistence, making it both practical for demos and extensible for serious drug discovery workflows."\par
+\par
+\pard\sa120 ------------------------------------------------------------\par
+\par
+\pard\sa180\b\fs30 17) Additional Interview FAQs (ML and AI clarity)\b0\fs22\par
+\pard\sa140\b\fs26 Q1) What ML models are used?\b0\fs22\par
+\pard **Answer:**\par
+\pard The current implementation is primarily a **rule-based and probabilistic ranking system**, not a deep supervised ML pipeline with a trained classifier/regressor checkpoint.\par
+\par
+\pard What is used:\par
+\pard\li360\tx360 1. Engineered feature scoring (efficacy, safety, complexity)\par
+\pard\li360\tx360 2. Weighted composite ranking\par
+\pard\li360\tx360 3. Softmax probability normalization\par
+\pard\li360\tx360 4. Quantum-inspired probability diffusion over similarity graph\par
+\par
+\pard AI/LLM used:\par
+\pard\li360\tx360 1. Gemini integration is used for assistant-style explanations and conversational help.\par
+\par
+\pard Interview-safe line:\par
+\pard "We use AI-assisted ranking and explanation layers with probabilistic scoring and diffusion, but this version does not train a custom end-to-end deep model in production."\par
+\par
+\pard\sa140\b\fs26 Q2) Why is it called AI-assisted?\b0\fs22\par
+\pard **Answer:**\par
+\pard It is called AI-assisted because the platform uses:\par
+\pard\li360\tx360 1. AI-style scoring heuristics for candidate prioritization\par
+\pard\li360\tx360 2. Probabilistic ranking and diffusion to surface non-obvious candidates\par
+\pard\li360\tx360 3. LLM-powered assistant for contextual molecule/project guidance\par
+\par
+\pard So the system **assists decision-making** for researchers rather than claiming autonomous clinical decision output.\par
+\par
+\pard\sa140\b\fs26 Q3) Do we have classification based on disease?\b0\fs22\par
+\pard **Answer:**\par
+\pard Not as a trained disease classifier model. Instead, the platform has **disease-aware profile logic**:\par
+\pard\li360\tx360 1. Disease keyword/category inference\par
+\pard\li360\tx360 2. Category-specific weight adjustments\par
+\pard\li360\tx360 3. Disease-targeted retrieval via disease keyword search\par
+\par
+\pard This is profile-driven prioritization, not a medical diagnosis classifier.\par
+\par
+\pard\sa140\b\fs26 Q4) How many diseases/categories are listed?\b0\fs22\par
+\pard **Answer:**\par
+\pard The app currently supports **6 therapeutic categories**:\par
+\pard\li360\tx360 1. Cancer\par
+\pard\li360\tx360 2. Infectious\par
+\pard\li360\tx360 3. CNS / Neurological\par
+\pard\li360\tx360 4. Metabolic\par
+\pard\li360\tx360 5. Cardiovascular\par
+\pard\li360\tx360 6. General\par
+\par
+\pard\sa140\b\fs26 Q5) Does it provide a single drug or a combination of drugs?\b0\fs22\par
+\pard **Answer:**\par
+\pard It currently returns a **ranked list of individual candidate molecules**.\par
+\pard It does **not** generate optimized multi-drug combination therapy plans in the current implementation.\par
+\par
+\pard\sa140\b\fs26 Q6) Is Lipinski used here? What is it?\b0\fs22\par
+\pard **Answer:**\par
+\pard Yes, Lipinski is used in both dataset engineering and frontend scoring checks.\par
+\par
+\pard **Lipinski Rule of Five** is a classic drug-likeness heuristic that checks if a compound is likely to have good oral bioavailability:\par
+\pard\li360\tx360 1. Molecular weight <= 500\par
+\pard\li360\tx360 2. LogP <= 5\par
+\pard\li360\tx360 3. H-bond donors <= 5\par
+\pard\li360\tx360 4. H-bond acceptors <= 10\par
+\par
+\pard How it is used in this project:\par
+\pard\li360\tx360 1. Lipinski compliance contributes to safety/drug-likeness evaluation.\par
+\pard\li360\tx360 2. It affects filtering and ranking confidence.\par
+\pard\li360\tx360 3. It is exposed in UI explanations for interpretability.\par
+\par
+\pard\sa120 ------------------------------------------------------------\par
+\par
+\pard\sa180\b\fs30 18) Sharp one-liners for interviewer cross-questions\b0\fs22\par
+\pard\li360\tx360 1. **Model question:** "This version focuses on engineered probabilistic intelligence rather than training a monolithic black-box model."\par
+\pard\li360\tx360 2. **AI claim question:** "AI-assisted here means ranked decision support plus LLM explanations, not autonomous prescription."\par
+\pard\li360\tx360 3. **Disease question:** "We support disease-aware prioritization profiles, not diagnostic disease classification."\par
+\pard\li360\tx360 4. **Output question:** "Current output is prioritized single compounds; combination therapy is future scope."\par
+\pard\li360\tx360 5. **Lipinski question:** "Lipinski is one of our core drug-likeness constraints for safe, explainable prioritization."\par
+}
+

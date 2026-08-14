@@ -10,7 +10,7 @@ Health‑Tech | Quantum‑Inspired Exploration of Drug Candidate Search Spaces
 QUANTIVA EXPLORER is a quantum‑inspired, visual platform that helps students and early researchers explore massive molecular search spaces, probabilistically prioritize drug candidates, and save reproducible experiments and simulation histories.
 
 ## Team
-**VORTED CORE** — creators of QUANTIVA EXPLORER
+**VORTEX CORE** — creators of QUANTIVA EXPLORER
 
 ---
 

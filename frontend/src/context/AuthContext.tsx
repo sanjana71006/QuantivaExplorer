@@ -4,8 +4,22 @@ type User = { name: string; email: string; id?: string } | null;
 
 const AuthContext = createContext<any>(null);
 
+function getSafeLocalStorage(): Storage | null {
+  try {
+    if (typeof window === "undefined") return null;
+    const s = window.localStorage;
+    const k = "__quantiva_storage_test__";
+    s.setItem(k, "1");
+    s.removeItem(k);
+    return s;
+  } catch {
+    return null;
+  }
+}
+
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem("authToken"));
+  const storage = getSafeLocalStorage();
+  const [token, setToken] = useState<string | null>(() => storage?.getItem("authToken") ?? null);
   const [user, setUser] = useState<User>(null);
   const [loading, setLoading] = useState(true);
 
@@ -35,7 +49,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         console.warn("auth fetchMe failed", err);
         setUser(null);
         setToken(null);
-        localStorage.removeItem("authToken");
+        try {
+          storage?.removeItem("authToken");
+        } catch {
+          // ignore
+        }
       } finally {
         setLoading(false);
       }
@@ -55,7 +73,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
     const data = await res.json();
     setToken(data.token);
-    localStorage.setItem("authToken", data.token);
+    try {
+      storage?.setItem("authToken", data.token);
+    } catch {
+      // Storage might be unavailable (private mode / blocked). Keep session in-memory.
+    }
     setUser({ name: data.user.name, email: data.user.email });
     return data;
   };
@@ -72,7 +94,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
     const data = await res.json();
     setToken(data.token);
-    localStorage.setItem("authToken", data.token);
+    try {
+      storage?.setItem("authToken", data.token);
+    } catch {
+      // ignore; keep token only in memory
+    }
     setUser({ name: data.user.name, email: data.user.email });
     return data;
   };
@@ -80,7 +106,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const logout = () => {
     setToken(null);
     setUser(null);
-    localStorage.removeItem("authToken");
+    try {
+      storage?.removeItem("authToken");
+    } catch {
+      // ignore
+    }
   };
 
   return (
