@@ -6,6 +6,8 @@ Health‑Tech | Quantum‑Inspired Exploration of Drug Candidate Search Spaces
 
 ---
 
+##Live -- https://quantiva-c5ib.onrender.com/
+
 ## One‑Line Pitch
 QUANTIVA EXPLORER is a quantum‑inspired, visual platform that helps students and early researchers explore massive molecular search spaces, probabilistically prioritize drug candidates, and save reproducible experiments and simulation histories.
 
